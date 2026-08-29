@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
-
 :root {
-  font-family: 'Cairo', Arial, sans-serif;
+  font-family: Arial, sans-serif;
   color: #172033;
   background: #f3f6fb;
   font-synthesis: none;
@@ -22,8 +20,7 @@ body {
 
 button,
 input,
-textarea,
-select {
+textarea {
   font: inherit;
 }
 
@@ -35,7 +32,6 @@ button {
   cursor: pointer;
   color: white;
   background: #1769aa;
-  transition: opacity 0.2s ease;
 }
 
 button:hover {
@@ -48,14 +44,17 @@ button:disabled {
 }
 
 input,
-textarea,
-select {
+textarea {
   width: 100%;
   min-height: 46px;
   padding: 10px 12px;
   border: 1px solid #d7deea;
   border-radius: 10px;
   background: white;
+}
+
+textarea {
+  resize: vertical;
 }
 
 main {
@@ -90,7 +89,8 @@ label {
   font-weight: 600;
 }
 
-label input {
+label input,
+label textarea {
   margin-top: 7px;
   font-weight: 400;
 }
@@ -134,7 +134,7 @@ label input {
 }
 
 .stat-card,
-.welcome-card {
+.content-card {
   padding: 22px;
   border-radius: 16px;
   background: white;
@@ -157,8 +157,78 @@ label input {
   color: #1769aa;
 }
 
-.welcome-card {
+.content-card {
   margin-top: 22px;
+}
+
+.customer-form {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.customer-form label {
+  margin: 0;
+}
+
+.customer-form button {
+  width: 100%;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.section-heading h2 {
+  margin: 0;
+}
+
+.section-heading input {
+  max-width: 300px;
+}
+
+.customers-list {
+  display: grid;
+  gap: 10px;
+}
+
+.customer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.customer-row h3,
+.customer-row p {
+  margin: 0;
+}
+
+.customer-row p {
+  margin-top: 5px;
+  color: #64748b;
+}
+
+.customer-row small {
+  display: block;
+  margin-top: 5px;
+  color: #475569;
+}
+
+.customer-status {
+  padding: 6px 10px;
+  border-radius: 20px;
+  color: #166534;
+  background: #dcfce7;
+  white-space: nowrap;
 }
 
 .message {
@@ -170,7 +240,7 @@ label input {
   color: #b42318;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 800px) {
   main {
     width: min(100% - 20px, 1100px);
     padding: 10px 0;
@@ -190,12 +260,164 @@ label input {
     gap: 10px;
   }
 
+  .customer-form {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-heading input {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .stat-card {
-    min-height: 110px;
+    min-height: 105px;
     padding: 16px;
   }
 
   .stat-card strong {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
   }
+
+  .customer-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.section-header h2,
+.section-header p {
+  margin: 0;
+}
+
+.section-header p {
+  color: #64748b;
+}
+
+.search-box {
+  margin-top: 18px;
+}
+
+.form-card {
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(20 40 80 / 7%);
+}
+
+.form-card h2 {
+  margin-top: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.cancel-button {
+  color: #172033;
+  background: #e8edf5;
+}
+
+.customers-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.customer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 6px 18px rgb(20 40 80 / 6%);
+}
+
+.customer-card h3 {
+  margin: 0 0 6px;
+}
+
+.customer-card p {
+  margin: 4px 0;
+  color: #64748b;
+}
+
+.edit-button {
+  min-width: 80px;
+  background: #475569;
+}
+
+.empty-card {
+  padding: 28px;
+  border-radius: 14px;
+  color: #64748b;
+  background: white;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-header button {
+    width: 100%;
+  }
+
+  .customer-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .edit-button {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.header-actions button:first-child {
+  background: #0f766e;
+}
+
+@media (max-width: 600px) {
+  .header-actions {
+    flex-direction: column;
+  }
+
+  .header-actions button {
+    width: 100%;
+  }
+}
+}
 }
