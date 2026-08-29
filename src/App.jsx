@@ -1,42 +1,104 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 
 function App() {
-  const [message, setMessage] = useState('لم يتم فحص الاتصال بعد')
+  const [session, setSession] = useState(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function testConnection() {
-    setLoading(true)
-    setMessage('جارٍ الاتصال بـ Supabase...')
+  useEffect(() => {
+    let mounted = true
 
-    const { error } = await supabase.auth.getSession()
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) {
+        setSession(data.session)
+      }
+    })
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  async function signIn(event) {
+    event.preventDefault()
+    setLoading(true)
+    setMessage('')
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password
+    })
 
     if (error) {
-      setMessage(`فشل الاتصال: ${error.message}`)
+      setMessage(`فشل تسجيل الدخول: ${error.message}`)
     } else {
-      setMessage('تم الاتصال بـ Supabase بنجاح')
+      setMessage('تم تسجيل الدخول بنجاح')
     }
 
     setLoading(false)
   }
 
+  async function signOut() {
+    await supabase.auth.signOut()
+    setSession(null)
+    setMessage('تم تسجيل الخروج')
+  }
+
+  if (!session) {
+    return (
+      <main dir="rtl">
+        <h1>نظام أوراق الزبائن</h1>
+
+        <form onSubmit={signIn}>
+          <label>
+            البريد الإلكتروني
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            كلمة المرور
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول'}
+          </button>
+        </form>
+
+        <p>{message}</p>
+      </main>
+    )
+  }
+
   return (
-    <main
-      dir="rtl"
-      style={{
-        maxWidth: '600px',
-        margin: '40px auto',
-        padding: '24px',
-        fontFamily: 'Arial, sans-serif',
-        textAlign: 'center'
-      }}
-    >
-      <h1>نظام أوراق الزبائن</h1>
+    <main dir="rtl">
+      <h1>مرحبًا بك في نظام أوراق الزبائن</h1>
 
-      <p>اختبار الاتصال مع Supabase</p>
+      <p>تم تسجيل الدخول بنجاح.</p>
+      <p>المستخدم: {session.user.email}</p>
 
-      <button onClick={testConnection} disabled={loading}>
-        {loading ? 'جارٍ الفحص...' : 'فحص الاتصال'}
+      <button onClick={signOut}>
+        تسجيل الخروج
       </button>
 
       <p>{message}</p>
