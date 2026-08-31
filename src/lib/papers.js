@@ -17,6 +17,48 @@ export async function getCurrentUser() {
   return user
 }
 
+export async function getPapers({
+  includeArchived = false,
+  customerId = null
+} = {}) {
+  let query = supabase
+    .from('papers')
+    .select(`
+      *,
+      customers (
+        id,
+        name,
+        phone
+      ),
+      payments (
+        id,
+        amount,
+        payment_date,
+        note,
+        is_archived
+      )
+    `)
+    .order('paper_date', {
+      ascending: false
+    })
+
+  if (!includeArchived) {
+    query = query.neq('status', 'archived')
+  }
+
+  if (customerId) {
+    query = query.eq('customer_id', customerId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    throw error
+  }
+
+  return data || []
+}
+
 export async function createPaper({
   customerId,
   paperDate,
@@ -60,71 +102,6 @@ export async function createPaper({
   return data
 }
 
-export async function getPapers({
-  includeArchived = false,
-  customerId = null
-} = {}) {
-  let query = supabase
-    .from('papers')
-    .select(`
-      *,
-      customers (
-        id,
-        name,
-        phone
-      ),
-      payments (
-        id,
-        amount,
-        payment_date,
-        note,
-        is_archived
-      )
-    `)
-    .order('paper_date', {
-      ascending: false
-    })
-
-  if (!includeArchived) {
-    query = query.neq('status', 'archived')
-  }
-
-  if (customerId) {
-    query = query.eq('customer_id', customerId)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    throw error
-  }
-
-  return data || []
-}
-
-export async function updatePaperImagePath(
-  paperId,
-  imagePath
-) {
-  const user = await getCurrentUser()
-
-  const { data, error } = await supabase
-    .from('papers')
-    .update({
-      image_path: imagePath,
-      updated_by: user.id
-    })
-    .eq('id', paperId)
-    .select()
-    .single()
-
-  if (error) {
-    throw error
-  }
-
-  return data
-}
-
 export async function updatePaperAmount(
   paperId,
   totalAmount
@@ -149,6 +126,29 @@ export async function updatePaperAmount(
     .from('papers')
     .update({
       total_amount: numericAmount,
+      updated_by: user.id
+    })
+    .eq('id', paperId)
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function updatePaperImagePath(
+  paperId,
+  imagePath
+) {
+  const user = await getCurrentUser()
+
+  const { data, error } = await supabase
+    .from('papers')
+    .update({
+      image_path: imagePath,
       updated_by: user.id
     })
     .eq('id', paperId)
@@ -201,6 +201,21 @@ export async function archivePaper(
     {
       p_paper_id: paperId,
       p_reason: reason || null
+    }
+  )
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function restorePaper(paperId) {
+  const { data, error } = await supabase.rpc(
+    'restore_paper',
+    {
+      p_paper_id: paperId
     }
   )
 

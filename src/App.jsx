@@ -16,6 +16,7 @@ import {
   calculateBalance,
   createPaper,
   getPapers,
+  restorePaper,
   updatePaperAmount
 } from './lib/papers'
 import {
@@ -36,13 +37,12 @@ function App() {
     let active = true
 
     async function loadSession() {
-      const { data } =
-        await supabase.auth.getSession()
+      const { data } = await supabase.auth.getSession()
 
-      if (active) {
-        setSession(data.session)
-        setLoading(false)
-      }
+      if (!active) return
+
+      setSession(data.session)
+      setLoading(false)
     }
 
     loadSession()
@@ -1185,6 +1185,20 @@ function PaperModal({
     }
   }
 
+  async function restoreArchivedPaper() {
+    setSaving(true)
+
+    try {
+      await restorePaper(paper.id)
+      setMessage('تم إلغاء الأرشفة وعادت الورقة مفتوحة')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const balance = calculateBalance(
     paper.total_amount,
     paper.payments
@@ -1231,98 +1245,125 @@ function PaperModal({
             : balance.toFixed(2)}
         </p>
 
-        <button
-          className="amount-button"
-          onClick={() =>
-            setShowAmountForm(!showAmountForm)
-          }
-        >
-          {paper.total_amount === null
-            ? 'إضافة قيمة الورقة'
-            : 'تعديل قيمة الورقة'}
-        </button>
+        <p>
+          الحالة: {getStatusText(paper.status)}
+        </p>
 
-        {showAmountForm && (
-          <form
-            className="amount-form"
-            onSubmit={saveAmount}
-          >
-            <label>
-              قيمة الورقة
-              <input
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(event) =>
-                  setAmount(event.target.value)
-                }
-                required
-              />
-            </label>
+        {paper.status === 'archived' ? (
+          <>
+            <p className="archive-info">
+              هذه الورقة مؤرشفة. عند إلغاء الأرشفة ستعود
+              كـ ورقة مفتوحة.
+            </p>
 
-            <button type="submit" disabled={saving}>
-              حفظ القيمة
+            <button
+              className="restore-button"
+              onClick={restoreArchivedPaper}
+              disabled={saving}
+            >
+              {saving
+                ? 'جارٍ إلغاء الأرشفة...'
+                : 'إلغاء الأرشفة وإعادة فتح الورقة'}
             </button>
-          </form>
-        )}
-
-        <button
-          className="payment-button"
-          onClick={() =>
-            setShowPaymentForm(!showPaymentForm)
-          }
-        >
-          {showPaymentForm
-            ? 'إلغاء'
-            : 'إضافة دفعة'}
-        </button>
-
-        {showPaymentForm && (
-          <form
-            className="payment-form"
-            onSubmit={savePayment}
-          >
-            <label>
-              قيمة الدفعة
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={paymentAmount}
-                onChange={(event) =>
-                  setPaymentAmount(event.target.value)
-                }
-                required
-              />
-            </label>
-
-            <label>
-              تاريخ الدفعة
-              <input
-                type="date"
-                value={paymentDate}
-                onChange={(event) =>
-                  setPaymentDate(event.target.value)
-                }
-                required
-              />
-            </label>
-
-            <label>
-              ملاحظة
-              <textarea
-                value={paymentNote}
-                onChange={(event) =>
-                  setPaymentNote(event.target.value)
-                }
-                rows="2"
-              />
-            </label>
-
-            <button type="submit" disabled={saving}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ الدفعة'}
+          </>
+        ) : (
+          <>
+            <button
+              className="amount-button"
+              onClick={() =>
+                setShowAmountForm(!showAmountForm)
+              }
+            >
+              {paper.total_amount === null
+                ? 'إضافة قيمة الورقة'
+                : 'تعديل قيمة الورقة'}
             </button>
-          </form>
+
+            {showAmountForm && (
+              <form
+                className="amount-form"
+                onSubmit={saveAmount}
+              >
+                <label>
+                  قيمة الورقة
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(event) =>
+                      setAmount(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  حفظ القيمة
+                </button>
+              </form>
+            )}
+
+            <button
+              className="payment-button"
+              onClick={() =>
+                setShowPaymentForm(!showPaymentForm)
+              }
+            >
+              {showPaymentForm
+                ? 'إلغاء'
+                : 'إضافة دفعة'}
+            </button>
+
+            {showPaymentForm && (
+              <form
+                className="payment-form"
+                onSubmit={savePayment}
+              >
+                <label>
+                  قيمة الدفعة
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(event) =>
+                      setPaymentAmount(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  تاريخ الدفعة
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) =>
+                      setPaymentDate(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  ملاحظة
+                  <textarea
+                    value={paymentNote}
+                    onChange={(event) =>
+                      setPaymentNote(event.target.value)
+                    }
+                    rows="2"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? 'جارٍ الحفظ...'
+                    : 'حفظ الدفعة'}
+                </button>
+              </form>
+            )}
+          </>
         )}
 
         {message && (
