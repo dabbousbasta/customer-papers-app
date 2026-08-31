@@ -80,9 +80,6 @@ select {
   outline: none;
   color: #1e293b;
   background: #ffffff;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
 }
 
 input:focus,
@@ -185,6 +182,38 @@ label select {
   background: rgb(255 255 255 / 14%);
 }
 
+.main-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 6px;
+  padding: 7px;
+  overflow-x: auto;
+  border: 1px solid #dce6f0;
+  border-radius: 15px;
+  background: rgb(255 255 255 / 84%);
+  box-shadow: 0 5px 15px rgb(15 23 42 / 4%);
+}
+
+.tab-button {
+  min-height: 42px;
+  flex: 1 0 auto;
+  padding: 7px 18px;
+  color: #475569;
+  background: transparent;
+}
+
+.tab-button:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: none;
+}
+
+.tab-button.active {
+  color: white;
+  background: #2563eb;
+  box-shadow: 0 5px 13px rgb(37 99 235 / 20%);
+}
+
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -264,6 +293,26 @@ label select {
   background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
 }
 
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.quick-actions button {
+  min-width: 180px;
+  background: #0f766e;
+}
+
+.quick-actions button:nth-child(2) {
+  background: #2563eb;
+}
+
+.quick-actions .reports-button {
+  background: #7c3aed;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -294,12 +343,9 @@ label select {
   background: #0f766e;
 }
 
-.header-actions button:nth-child(2) {
-  background: #2563eb;
-}
-
-.reports-button {
-  background: #7c3aed;
+.back-button {
+  color: #334155;
+  background: #e8eef5;
 }
 
 .search-box {
@@ -310,6 +356,25 @@ label select {
   min-height: 52px;
   border-color: #d8e2ee;
   box-shadow: 0 5px 14px rgb(15 23 42 / 4%);
+}
+
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.filter-button {
+  min-height: 40px;
+  padding: 7px 17px;
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.filter-button.active {
+  color: white;
+  background: #2563eb;
 }
 
 .reports-card,
@@ -360,7 +425,7 @@ label select {
 .report-actions {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 10px;
 }
 
 .report-row strong {
@@ -372,6 +437,13 @@ label select {
   min-height: 38px;
   padding: 6px 13px;
   background: #16a34a;
+  font-size: 0.85rem;
+}
+
+.history-button {
+  min-height: 38px;
+  padding: 6px 13px;
+  background: #7c3aed;
   font-size: 0.85rem;
 }
 
@@ -468,18 +540,32 @@ label select {
   font-size: 0.88rem;
 }
 
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .edit-button {
   min-width: 82px;
   background: #475569;
 }
 
-.details-button {
-  min-width: 92px;
-  background: #0f766e;
+.empty-card {
+  padding: 28px;
+  border-radius: 14px;
+  color: #64748b;
+  background: white;
+  text-align: center;
 }
 
 .papers-section {
   margin-top: 30px;
+}
+
+.details-button {
+  min-width: 92px;
+  background: #0f766e;
 }
 
 .modal-backdrop {
@@ -643,6 +729,14 @@ label select {
     width: 100%;
   }
 
+  .main-tabs {
+    margin-top: 12px;
+  }
+
+  .tab-button {
+    flex: 0 0 auto;
+  }
+
   .dashboard-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -655,6 +749,15 @@ label select {
 
   .dashboard-card strong {
     font-size: 1.55rem;
+  }
+
+  .quick-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions button {
+    width: 100%;
   }
 
   .section-header {
@@ -688,7 +791,8 @@ label select {
     flex-direction: column;
   }
 
-  .whatsapp-button {
+  .whatsapp-button,
+  .history-button {
     width: 100%;
   }
 
@@ -697,6 +801,11 @@ label select {
     align-items: stretch;
     flex-direction: column;
     padding: 17px;
+  }
+
+  .card-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .edit-button,

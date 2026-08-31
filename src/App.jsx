@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import {
   createCustomer,
@@ -34,6 +34,11 @@ function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
 
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [paperFilter, setPaperFilter] = useState('all')
+  const [selectedHistoryCustomer, setSelectedHistoryCustomer] =
+    useState(null)
+
   const [customers, setCustomers] = useState([])
   const [papers, setPapers] = useState([])
   const [customerReports, setCustomerReports] =
@@ -48,7 +53,8 @@ function App() {
   })
 
   const [search, setSearch] = useState('')
-  const [showReports, setShowReports] = useState(false)
+  const [customerSearch, setCustomerSearch] =
+    useState('')
 
   const [showCustomerForm, setShowCustomerForm] =
     useState(false)
@@ -168,7 +174,7 @@ function App() {
       await loadProfile(user.id)
     }
 
-    await loadCustomers(search)
+    await loadCustomers('')
     await loadPapers()
     await loadDashboard()
   }
@@ -199,7 +205,10 @@ function App() {
 
   async function loadPapers() {
     try {
-      const data = await getPapers()
+      const data = await getPapers({
+        includeArchived: true
+      })
+
       setPapers(data)
     } catch (error) {
       setMessage(`فشل تحميل الأوراق: ${error.message}`)
@@ -232,7 +241,10 @@ function App() {
   }
 
   async function refreshSelectedPaper(paperId) {
-    const updatedPapers = await getPapers()
+    const updatedPapers = await getPapers({
+      includeArchived: true
+    })
+
     setPapers(updatedPapers)
 
     const updatedPaper = updatedPapers.find(
@@ -345,6 +357,7 @@ function App() {
     resetCustomerForm()
     setShowCustomerForm(true)
     setShowPaperForm(false)
+    setActiveTab('customers')
     setMessage('')
   }
 
@@ -355,6 +368,7 @@ function App() {
     setCustomerNotes(customer.notes || '')
     setShowCustomerForm(true)
     setShowPaperForm(false)
+    setActiveTab('customers')
     setMessage('')
   }
 
@@ -362,6 +376,7 @@ function App() {
     resetPaperForm()
     setShowPaperForm(true)
     setShowCustomerForm(false)
+    setActiveTab('papers')
     setMessage('')
   }
 
@@ -412,7 +427,7 @@ function App() {
 
       resetCustomerForm()
       setShowCustomerForm(false)
-      await loadCustomers(search)
+      await loadCustomers(customerSearch)
       await loadDashboard()
     } catch (error) {
       setMessage(error.message || 'حدث خطأ أثناء الحفظ')
@@ -581,8 +596,7 @@ function App() {
         archiveReason
       )
 
-      await loadPapers()
-      await loadDashboard()
+      await refreshData()
 
       setSelectedPaper(null)
       setSelectedPaperImage(null)
@@ -633,7 +647,7 @@ function App() {
       return
     }
 
-    setMessage('جارٍ تجهيز التقرير والروابط...')
+    setMessage('جارٍ تجهيز التقرير...')
 
     try {
       const customerPapers = papers.filter(
@@ -649,9 +663,16 @@ function App() {
       setMessage('تم تجهيز رسالة WhatsApp')
     } catch (error) {
       setMessage(
-        error.message || 'فشل تجهيز تقرير WhatsApp'
+        error.message || 'فشل تجهيز التقرير'
       )
     }
+  }
+
+  async function openCustomerHistory(customer) {
+    setSelectedHistoryCustomer(customer)
+    setActiveTab('customer-history')
+    setPaperFilter('all')
+    setMessage('')
   }
 
   async function openOldImage(imagePath) {
@@ -662,7 +683,7 @@ function App() {
 
       window.open(imageUrl, '_blank')
     } catch (error) {
-      setMessage(`فشل فتح الصورة القديمة: ${error.message}`)
+      setMessage(`فشل فتح الصورة: ${error.message}`)
     }
   }
 
@@ -686,6 +707,58 @@ function App() {
   function formatAmount(value) {
     return Number(value || 0).toFixed(2)
   }
+
+  const filteredCustomers = useMemo(() => {
+    const text = customerSearch.trim().toLowerCase()
+
+    if (!text) {
+      return customers
+    }
+
+    return customers.filter((customer) =>
+      customer.name.toLowerCase().includes(text)
+    )
+  }, [customers, customerSearch])
+
+  const visiblePapers = useMemo(() => {
+    if (activeTab === 'customer-history') {
+      if (!selectedHistoryCustomer) {
+        return []
+      }
+
+      return papers.filter(
+        (paper) =>
+          paper.customer_id === selectedHistoryCustomer.id
+      )
+    }
+
+    if (paperFilter === 'open') {
+      return papers.filter(
+        (paper) => paper.status === 'open'
+      )
+    }
+
+    if (paperFilter === 'closed') {
+      return papers.filter(
+        (paper) => paper.status === 'closed'
+      )
+    }
+
+    if (paperFilter === 'archived') {
+      return papers.filter(
+        (paper) => paper.status === 'archived'
+      )
+    }
+
+    return papers.filter(
+      (paper) => paper.status !== 'archived'
+    )
+  }, [
+    activeTab,
+    paperFilter,
+    papers,
+    selectedHistoryCustomer
+  ])
 
   if (loading) {
     return (
@@ -727,7 +800,7 @@ function App() {
               />
             </label>
 
-            <button type="submit" disabled={loading}>
+            <button type="submit">
               تسجيل الدخول
             </button>
           </form>
@@ -758,400 +831,606 @@ function App() {
         </button>
       </header>
 
-      <section className="dashboard-cards">
-        <article className="dashboard-card">
-          <span>الزبائن</span>
-          <strong>{dashboard.customersCount}</strong>
-        </article>
+      <nav className="main-tabs">
+        <button
+          className={
+            activeTab === 'dashboard'
+              ? 'tab-button active'
+              : 'tab-button'
+          }
+          onClick={() => setActiveTab('dashboard')}
+        >
+          لوحة التحكم
+        </button>
 
-        <article className="dashboard-card">
-          <span>الأوراق المفتوحة</span>
-          <strong>{dashboard.openPapersCount}</strong>
-        </article>
+        <button
+          className={
+            activeTab === 'customers'
+              ? 'tab-button active'
+              : 'tab-button'
+          }
+          onClick={() => setActiveTab('customers')}
+        >
+          الزبائن
+        </button>
 
-        <article className="dashboard-card">
-          <span>غير محسوبة</span>
-          <strong>
-            {dashboard.uncalculatedPapersCount}
-          </strong>
-        </article>
+        <button
+          className={
+            activeTab === 'papers'
+              ? 'tab-button active'
+              : 'tab-button'
+          }
+          onClick={() => setActiveTab('papers')}
+        >
+          الأوراق
+        </button>
 
-        <article className="dashboard-card">
-          <span>زبائن عليهم أوراق</span>
-          <strong>
-            {dashboard.customersWithOpenPapersCount}
-          </strong>
-        </article>
+        <button
+          className={
+            activeTab === 'reports'
+              ? 'tab-button active'
+              : 'tab-button'
+          }
+          onClick={() => setActiveTab('reports')}
+        >
+          التقارير
+        </button>
 
-        <article className="dashboard-card total-card">
-          <span>إجمالي الأرصدة</span>
-          <strong>
-            {formatAmount(dashboard.totalRemaining)}
-          </strong>
-        </article>
-      </section>
-
-      <section className="section-header">
-        <div>
-          <h2>الزبائن والأوراق</h2>
-          <p>
-            الزبائن: {customers.length} | الأوراق: {papers.length}
-          </p>
-        </div>
-
-        <div className="header-actions">
-          <button onClick={openAddPaper}>
-            إضافة ورقة
+        {activeTab === 'customer-history' && (
+          <button className="tab-button active">
+            سجل العميل
           </button>
+        )}
+      </nav>
 
-          <button onClick={openAddCustomer}>
-            إضافة زبون
-          </button>
+      {activeTab === 'dashboard' && (
+        <>
+          <section className="dashboard-cards">
+            <article className="dashboard-card">
+              <span>الزبائن</span>
+              <strong>{dashboard.customersCount}</strong>
+            </article>
 
-          <button
-            className="reports-button"
-            onClick={() => setShowReports(!showReports)}
-          >
-            {showReports
-              ? 'إخفاء التقارير'
-              : 'عرض التقارير'}
-          </button>
-        </div>
-      </section>
+            <article className="dashboard-card">
+              <span>الأوراق المفتوحة</span>
+              <strong>
+                {dashboard.openPapersCount}
+              </strong>
+            </article>
 
-      {showReports && (
-        <section className="reports-card">
-          <h2>تقرير الأرصدة حسب الزبون</h2>
+            <article className="dashboard-card">
+              <span>غير محسوبة</span>
+              <strong>
+                {dashboard.uncalculatedPapersCount}
+              </strong>
+            </article>
 
-          {customerReports.length === 0 ? (
-            <p>لا يوجد زبائن عليهم أرصدة مفتوحة</p>
-          ) : (
-            <div className="reports-list">
-              {customerReports.map((report) => (
+            <article className="dashboard-card">
+              <span>زبائن عليهم أوراق</span>
+              <strong>
+                {dashboard.customersWithOpenPapersCount}
+              </strong>
+            </article>
+
+            <article className="dashboard-card total-card">
+              <span>إجمالي الأرصدة</span>
+              <strong>
+                {formatAmount(dashboard.totalRemaining)}
+              </strong>
+            </article>
+          </section>
+
+          <section className="quick-actions">
+            <button onClick={openAddPaper}>
+              إضافة ورقة جديدة
+            </button>
+
+            <button onClick={openAddCustomer}>
+              إضافة زبون جديد
+            </button>
+
+            <button
+              className="reports-button"
+              onClick={() => setActiveTab('reports')}
+            >
+              فتح التقارير
+            </button>
+          </section>
+        </>
+      )}
+
+      {activeTab === 'customers' && (
+        <>
+          <section className="section-header">
+            <div>
+              <h2>الزبائن</h2>
+              <p>العدد: {customers.length}</p>
+            </div>
+
+            <button onClick={openAddCustomer}>
+              إضافة زبون
+            </button>
+          </section>
+
+          <section className="search-box">
+            <input
+              type="search"
+              placeholder="ابحث عن الزبون..."
+              value={customerSearch}
+              onChange={(event) =>
+                setCustomerSearch(event.target.value)
+              }
+            />
+          </section>
+
+          {showCustomerForm && (
+            <section className="form-card">
+              <h2>
+                {editingCustomer
+                  ? 'تعديل الزبون'
+                  : 'إضافة زبون جديد'}
+              </h2>
+
+              <form onSubmit={saveCustomer}>
+                <label>
+                  اسم الزبون
+                  <input
+                    value={customerName}
+                    onChange={(event) =>
+                      setCustomerName(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  الهاتف
+                  <input
+                    value={customerPhone}
+                    onChange={(event) =>
+                      setCustomerPhone(event.target.value)
+                    }
+                  />
+                </label>
+
+                <label>
+                  ملاحظات
+                  <textarea
+                    value={customerNotes}
+                    onChange={(event) =>
+                      setCustomerNotes(event.target.value)
+                    }
+                    rows="3"
+                  />
+                </label>
+
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                  >
+                    {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => {
+                      resetCustomerForm()
+                      setShowCustomerForm(false)
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          {message && <p className="message">{message}</p>}
+
+          <section className="customers-list">
+            {filteredCustomers.length === 0 ? (
+              <div className="empty-card">
+                لا يوجد زبائن
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => (
                 <article
-                  className="report-row"
-                  key={report.customerId}
+                  className="customer-card"
+                  key={customer.id}
                 >
                   <div>
-                    <h3>{report.name}</h3>
-                    <p>
-                      عدد الأوراق المفتوحة:{' '}
-                      {report.openPapersCount}
-                    </p>
+                    <h3>{customer.name}</h3>
+
+                    {customer.phone && (
+                      <p>الهاتف: {customer.phone}</p>
+                    )}
+
+                    {customer.notes && (
+                      <p>
+                        ملاحظات: {customer.notes}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="report-actions">
-                    <strong>
-                      {formatAmount(report.totalRemaining)}
-                    </strong>
-
+                  <div className="card-actions">
                     <button
-                      className="whatsapp-button"
+                      className="history-button"
                       onClick={() =>
-                        shareCustomerReport(
-                          report.customerId
-                        )
+                        openCustomerHistory(customer)
                       }
                     >
-                      WhatsApp
+                      كل الأوراق
+                    </button>
+
+                    <button
+                      className="edit-button"
+                      onClick={() =>
+                        openEditCustomer(customer)
+                      }
+                    >
+                      تعديل
                     </button>
                   </div>
                 </article>
-              ))}
-
-              <div className="report-total">
-                <span>الإجمالي العام:</span>
-                <strong>
-                  {formatAmount(dashboard.totalRemaining)}
-                </strong>
-              </div>
-            </div>
-          )}
-        </section>
+              ))
+            )}
+          </section>
+        </>
       )}
 
-      <section className="search-box">
-        <input
-          type="search"
-          placeholder="ابحث عن اسم الزبون..."
-          value={search}
-          onChange={async (event) => {
-            const value = event.target.value
-            setSearch(value)
-            await loadCustomers(value)
-          }}
-        />
-      </section>
+      {(activeTab === 'papers' ||
+        activeTab === 'customer-history') && (
+        <>
+          <section className="section-header">
+            <div>
+              <h2>
+                {activeTab === 'customer-history'
+                  ? `سجل أوراق: ${
+                      selectedHistoryCustomer?.name || ''
+                    }`
+                  : 'الأوراق'}
+              </h2>
 
-      {showCustomerForm && (
-        <section className="form-card">
-          <h2>
-            {editingCustomer
-              ? 'تعديل الزبون'
-              : 'إضافة زبون جديد'}
-          </h2>
-
-          <form onSubmit={saveCustomer}>
-            <label>
-              اسم الزبون
-              <input
-                value={customerName}
-                onChange={(event) =>
-                  setCustomerName(event.target.value)
-                }
-                required
-              />
-            </label>
-
-            <label>
-              الهاتف
-              <input
-                value={customerPhone}
-                onChange={(event) =>
-                  setCustomerPhone(event.target.value)
-                }
-              />
-            </label>
-
-            <label>
-              ملاحظات
-              <textarea
-                value={customerNotes}
-                onChange={(event) =>
-                  setCustomerNotes(event.target.value)
-                }
-                rows="3"
-              />
-            </label>
-
-            <div className="form-actions">
-              <button type="submit" disabled={saving}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ'}
-              </button>
-
-              <button
-                type="button"
-                className="cancel-button"
-                onClick={() => {
-                  resetCustomerForm()
-                  setShowCustomerForm(false)
-                }}
-              >
-                إلغاء
-              </button>
+              <p>
+                عدد الأوراق: {visiblePapers.length}
+              </p>
             </div>
-          </form>
-        </section>
-      )}
 
-      {showPaperForm && (
-        <section className="form-card">
-          <h2>إضافة ورقة جديدة</h2>
+            <div className="header-actions">
+              <button onClick={openAddPaper}>
+                إضافة ورقة
+              </button>
 
-          {customers.length === 0 ? (
-            <p className="message error">
-              أضف زبونًا أولًا قبل إنشاء الورقة.
-            </p>
-          ) : (
-            <form onSubmit={savePaper}>
-              <label>
-                الزبون
-                <select
-                  value={selectedCustomerId}
-                  onChange={(event) =>
-                    setSelectedCustomerId(event.target.value)
-                  }
-                  required
-                >
-                  <option value="">اختر الزبون</option>
-
-                  {customers.map((customer) => (
-                    <option
-                      key={customer.id}
-                      value={customer.id}
-                    >
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                صورة الورقة
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) =>
-                    setPaperFile(
-                      event.target.files?.[0] || null
-                    )
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                تاريخ الورقة
-                <input
-                  type="date"
-                  value={paperDate}
-                  onChange={(event) =>
-                    setPaperDate(event.target.value)
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                القيمة، اختيارية
-                <input
-                  type="number"
-                  step="0.01"
-                  value={totalAmount}
-                  onChange={(event) =>
-                    setTotalAmount(event.target.value)
-                  }
-                />
-              </label>
-
-              <label>
-                ملاحظة، اختيارية
-                <textarea
-                  value={paperNote}
-                  onChange={(event) =>
-                    setPaperNote(event.target.value)
-                  }
-                  rows="3"
-                />
-              </label>
-
-              <div className="form-actions">
-                <button type="submit" disabled={saving}>
-                  {saving ? 'جارٍ الحفظ...' : 'حفظ الورقة'}
-                </button>
-
+              {activeTab === 'customer-history' && (
                 <button
-                  type="button"
-                  className="cancel-button"
+                  className="back-button"
                   onClick={() => {
-                    resetPaperForm()
-                    setShowPaperForm(false)
+                    setActiveTab('customers')
+                    setSelectedHistoryCustomer(null)
                   }}
                 >
-                  إلغاء
+                  العودة إلى الزبائن
                 </button>
-              </div>
-            </form>
+              )}
+            </div>
+          </section>
+
+          <section className="filter-tabs">
+            <button
+              className={
+                paperFilter === 'all'
+                  ? 'filter-button active'
+                  : 'filter-button'
+              }
+              onClick={() => setPaperFilter('all')}
+            >
+              الكل
+            </button>
+
+            <button
+              className={
+                paperFilter === 'open'
+                  ? 'filter-button active'
+                  : 'filter-button'
+              }
+              onClick={() => setPaperFilter('open')}
+            >
+              مفتوحة
+            </button>
+
+            <button
+              className={
+                paperFilter === 'closed'
+                  ? 'filter-button active'
+                  : 'filter-button'
+              }
+              onClick={() => setPaperFilter('closed')}
+            >
+              مغلقة
+            </button>
+
+            <button
+              className={
+                paperFilter === 'archived'
+                  ? 'filter-button active'
+                  : 'filter-button'
+              }
+              onClick={() => setPaperFilter('archived')}
+            >
+              مؤرشفة
+            </button>
+          </section>
+
+          {showPaperForm && (
+            <section className="form-card">
+              <h2>إضافة ورقة جديدة</h2>
+
+              {customers.length === 0 ? (
+                <p className="message error">
+                  أضف زبونًا أولًا.
+                </p>
+              ) : (
+                <form onSubmit={savePaper}>
+                  <label>
+                    الزبون
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(event) =>
+                        setSelectedCustomerId(
+                          event.target.value
+                        )
+                      }
+                      required
+                    >
+                      <option value="">
+                        اختر الزبون
+                      </option>
+
+                      {customers.map((customer) => (
+                        <option
+                          key={customer.id}
+                          value={customer.id}
+                        >
+                          {customer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    صورة الورقة
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(event) =>
+                        setPaperFile(
+                          event.target.files?.[0] || null
+                        )
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    تاريخ الورقة
+                    <input
+                      type="date"
+                      value={paperDate}
+                      onChange={(event) =>
+                        setPaperDate(event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    القيمة، اختيارية
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={totalAmount}
+                      onChange={(event) =>
+                        setTotalAmount(
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    ملاحظة، اختيارية
+                    <textarea
+                      value={paperNote}
+                      onChange={(event) =>
+                        setPaperNote(event.target.value)
+                      }
+                      rows="3"
+                    />
+                  </label>
+
+                  <div className="form-actions">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                    >
+                      {saving
+                        ? 'جارٍ الحفظ...'
+                        : 'حفظ الورقة'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      onClick={() => {
+                        resetPaperForm()
+                        setShowPaperForm(false)
+                      }}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
           )}
-        </section>
+
+          {message && <p className="message">{message}</p>}
+
+          <section className="papers-list">
+            {visiblePapers.length === 0 ? (
+              <div className="empty-card">
+                لا توجد أوراق في هذا القسم
+              </div>
+            ) : (
+              visiblePapers.map((paper) => {
+                const balance = calculateBalance(
+                  paper.total_amount,
+                  paper.payments
+                )
+
+                return (
+                  <article
+                    className="paper-card"
+                    key={paper.id}
+                  >
+                    <div>
+                      <h3>
+                        {paper.customers?.name ||
+                          'زبون غير معروف'}
+                      </h3>
+
+                      <p>
+                        التاريخ: {paper.paper_date}
+                      </p>
+
+                      <p>
+                        القيمة:{' '}
+                        {paper.total_amount === null
+                          ? 'غير محسوبة'
+                          : paper.total_amount}
+                      </p>
+
+                      <p>
+                        الدفعات:{' '}
+                        {formatAmount(
+                          getPaymentsTotal(paper)
+                        )}
+                      </p>
+
+                      <p>
+                        الرصيد:{' '}
+                        {balance === null
+                          ? 'غير محسوب'
+                          : formatAmount(balance)}
+                      </p>
+
+                      <p>
+                        الحالة:{' '}
+                        {getStatusText(paper.status)}
+                      </p>
+                    </div>
+
+                    <button
+                      className="details-button"
+                      onClick={() =>
+                        openPaperDetails(paper)
+                      }
+                    >
+                      التفاصيل
+                    </button>
+                  </article>
+                )
+              })
+            )}
+          </section>
+        </>
       )}
 
-      {message && <p className="message">{message}</p>}
+      {activeTab === 'reports' && (
+        <section className="reports-page">
+          <section className="section-header">
+            <div>
+              <h2>التقارير</h2>
+              <p>الأرصدة المفتوحة حسب الزبون</p>
+            </div>
+          </section>
 
-      <section className="customers-list">
-        {customers.length === 0 ? (
-          <div className="empty-card">
-            لا يوجد زبائن حتى الآن
-          </div>
-        ) : (
-          customers.map((customer) => (
-            <article
-              className="customer-card"
-              key={customer.id}
-            >
-              <div>
-                <h3>{customer.name}</h3>
-
-                {customer.phone && (
-                  <p>الهاتف: {customer.phone}</p>
-                )}
-
-                {customer.notes && (
-                  <p>ملاحظات: {customer.notes}</p>
-                )}
-              </div>
-
-              <button
-                className="edit-button"
-                onClick={() => openEditCustomer(customer)}
-              >
-                تعديل
-              </button>
-            </article>
-          ))
-        )}
-      </section>
-
-      <section className="papers-section">
-        <div className="section-header">
-          <div>
-            <h2>آخر الأوراق</h2>
-            <p>عدد الأوراق: {papers.length}</p>
-          </div>
-        </div>
-
-        {papers.length === 0 ? (
-          <div className="empty-card">
-            لا توجد أوراق حتى الآن
-          </div>
-        ) : (
-          <div className="papers-list">
-            {papers.map((paper) => {
-              const balance = calculateBalance(
-                paper.total_amount,
-                paper.payments
-              )
-
-              return (
-                <article
-                  className="paper-card"
-                  key={paper.id}
-                >
-                  <div>
-                    <h3>
-                      {paper.customers?.name ||
-                        'زبون غير معروف'}
-                    </h3>
-
-                    <p>التاريخ: {paper.paper_date}</p>
-
-                    <p>
-                      القيمة:{' '}
-                      {paper.total_amount === null
-                        ? 'غير محسوبة'
-                        : paper.total_amount}
-                    </p>
-
-                    <p>
-                      مجموع الدفعات:{' '}
-                      {formatAmount(getPaymentsTotal(paper))}
-                    </p>
-
-                    <p>
-                      الرصيد:{' '}
-                      {balance === null
-                        ? 'غير محسوب'
-                        : formatAmount(balance)}
-                    </p>
-
-                    <p>
-                      الحالة: {getStatusText(paper.status)}
-                    </p>
-                  </div>
-
-                  <button
-                    className="details-button"
-                    onClick={() => openPaperDetails(paper)}
+          <section className="reports-card">
+            {customerReports.length === 0 ? (
+              <p>
+                لا يوجد زبائن عليهم أرصدة مفتوحة
+              </p>
+            ) : (
+              <div className="reports-list">
+                {customerReports.map((report) => (
+                  <article
+                    className="report-row"
+                    key={report.customerId}
                   >
-                    التفاصيل
-                  </button>
-                </article>
-              )
-            })}
-          </div>
-        )}
-      </section>
+                    <div>
+                      <h3>{report.name}</h3>
+                      <p>
+                        الأوراق المفتوحة:{' '}
+                        {report.openPapersCount}
+                      </p>
+                    </div>
+
+                    <div className="report-actions">
+                      <strong>
+                        {formatAmount(
+                          report.totalRemaining
+                        )}
+                      </strong>
+
+                      <button
+                        className="history-button"
+                        onClick={() => {
+                          const customer =
+                            customers.find(
+                              (item) =>
+                                item.id ===
+                                report.customerId
+                            )
+
+                          if (customer) {
+                            openCustomerHistory(customer)
+                          }
+                        }}
+                      >
+                        كل الأوراق
+                      </button>
+
+                      <button
+                        className="whatsapp-button"
+                        onClick={() =>
+                          shareCustomerReport(
+                            report.customerId
+                          )
+                        }
+                      >
+                        WhatsApp
+                      </button>
+                    </div>
+                  </article>
+                ))}
+
+                <div className="report-total">
+                  <span>الإجمالي العام:</span>
+
+                  <strong>
+                    {formatAmount(
+                      dashboard.totalRemaining
+                    )}
+                  </strong>
+                </div>
+              </div>
+            )}
+          </section>
+        </section>
+      )}
 
       {selectedPaper && (
         <div className="modal-backdrop">
@@ -1227,9 +1506,12 @@ function App() {
                 </label>
 
                 <div className="form-actions">
-                  <button type="submit" disabled={saving}>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                  >
                     {saving
-                      ? 'جارٍ رفع الصورة...'
+                      ? 'جارٍ الرفع...'
                       : 'حفظ الصورة الجديدة'}
                   </button>
 
@@ -1252,7 +1534,9 @@ function App() {
                 'زبون غير معروف'}
             </h3>
 
-            <p>التاريخ: {selectedPaper.paper_date}</p>
+            <p>
+              التاريخ: {selectedPaper.paper_date}
+            </p>
 
             <p>
               القيمة:{' '}
@@ -1262,7 +1546,7 @@ function App() {
             </p>
 
             <p>
-              مجموع الدفعات:{' '}
+              الدفعات:{' '}
               {formatAmount(getPaymentsTotal(selectedPaper))}
             </p>
 
@@ -1282,7 +1566,8 @@ function App() {
             </p>
 
             <p>
-              الحالة: {getStatusText(selectedPaper.status)}
+              الحالة:{' '}
+              {getStatusText(selectedPaper.status)}
             </p>
 
             {selectedPaper.note && (
@@ -1334,7 +1619,7 @@ function App() {
                 <h3>أرشفة الورقة</h3>
 
                 <label>
-                  سبب الأرشفة، اختياري
+                  سبب الأرشفة
                   <textarea
                     value={archiveReason}
                     onChange={(event) =>
@@ -1346,7 +1631,10 @@ function App() {
                 </label>
 
                 <div className="form-actions">
-                  <button type="submit" disabled={saving}>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                  >
                     {saving
                       ? 'جارٍ الأرشفة...'
                       : 'تأكيد الأرشفة'}
@@ -1419,7 +1707,10 @@ function App() {
                 </label>
 
                 <div className="form-actions">
-                  <button type="submit" disabled={saving}>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                  >
                     {saving
                       ? 'جارٍ الحفظ...'
                       : 'حفظ الدفعة'}
