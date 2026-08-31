@@ -8,10 +8,13 @@ import {
 import {
   calculateBalance,
   createPaper,
-  getPapers
+  getPapers,
+  updatePaperImagePath
 } from './lib/papers'
 import {
   createPaperImageUrl,
+  getPaperImageHistory,
+  savePaperImageHistory,
   uploadPaperImage
 } from './lib/storage'
 import {
@@ -33,16 +36,26 @@ function App() {
   const [editingCustomer, setEditingCustomer] = useState(null)
 
   const [selectedPaper, setSelectedPaper] = useState(null)
-  const [selectedPaperImage, setSelectedPaperImage] = useState(null)
+  const [selectedPaperImage, setSelectedPaperImage] =
+    useState(null)
 
-  const [showPaymentForm, setShowPaymentForm] = useState(false)
-  const [editingPayment, setEditingPayment] = useState(null)
+  const [showPaymentForm, setShowPaymentForm] =
+    useState(false)
+  const [editingPayment, setEditingPayment] =
+    useState(null)
+
+  const [showImageForm, setShowImageForm] =
+    useState(false)
+  const [newImageFile, setNewImageFile] = useState(null)
+  const [newImageNote, setNewImageNote] = useState('')
+  const [imageHistory, setImageHistory] = useState([])
 
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [selectedCustomerId, setSelectedCustomerId] =
+    useState('')
   const [paperDate, setPaperDate] = useState(
     new Date().toISOString().slice(0, 10)
   )
@@ -67,7 +80,8 @@ function App() {
     let mounted = true
 
     async function initialize() {
-      const { data, error } = await supabase.auth.getSession()
+      const { data, error } =
+        await supabase.auth.getSession()
 
       if (!mounted) return
 
@@ -112,19 +126,20 @@ function App() {
   }, [])
 
   async function loadProfile(userId) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
       .select('display_name')
       .eq('id', userId)
       .single()
 
-    if (!error) {
+    if (data) {
       setProfile(data)
     }
   }
 
   async function loadCustomers(searchText = '') {
-    const { data, error } = await getCustomers(searchText)
+    const { data, error } =
+      await getCustomers(searchText)
 
     if (error) {
       setMessage(`فشل تحميل الزبائن: ${error.message}`)
@@ -151,33 +166,41 @@ function App() {
       (paper) => paper.id === paperId
     )
 
-    if (updatedPaper) {
-      setSelectedPaper(updatedPaper)
+    if (!updatedPaper) return
 
-      const imageUrl = await createPaperImageUrl(
-        updatedPaper.image_path
-      )
+    setSelectedPaper(updatedPaper)
 
-      setSelectedPaperImage(imageUrl)
-    }
+    const imageUrl = await createPaperImageUrl(
+      updatedPaper.image_path
+    )
+
+    setSelectedPaperImage(imageUrl)
   }
 
   async function openPaperDetails(paper) {
     try {
-      setMessage('جارٍ تحميل صورة الورقة...')
+      setMessage('جارٍ تحميل تفاصيل الورقة...')
 
       const imageUrl = await createPaperImageUrl(
         paper.image_path
       )
 
+      const history = await getPaperImageHistory(paper.id)
+
       setSelectedPaper(paper)
       setSelectedPaperImage(imageUrl)
+      setImageHistory(history)
       setShowPaymentForm(false)
-      setEditingPayment(null)
+      setShowImageForm(false)
       setMessage('')
     } catch (error) {
-      setMessage(`فشل تحميل الصورة: ${error.message}`)
+      setMessage(`فشل تحميل التفاصيل: ${error.message}`)
     }
+  }
+
+  async function loadImageHistory(paperId) {
+    const history = await getPaperImageHistory(paperId)
+    setImageHistory(history)
   }
 
   async function signIn(event) {
@@ -185,10 +208,11 @@ function App() {
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password
-    })
+    const { error } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password
+      })
 
     if (error) {
       setMessage(`فشل تسجيل الدخول: ${error.message}`)
@@ -226,6 +250,11 @@ function App() {
     setPaymentDate(new Date().toISOString().slice(0, 10))
     setPaymentNote('')
     setEditingPayment(null)
+  }
+
+  function resetImageForm() {
+    setNewImageFile(null)
+    setNewImageNote('')
   }
 
   function openAddCustomer() {
@@ -267,6 +296,12 @@ function App() {
     setMessage('')
   }
 
+  function openReplaceImage() {
+    resetImageForm()
+    setShowImageForm(true)
+    setMessage('')
+  }
+
   async function saveCustomer(event) {
     event.preventDefault()
     setSaving(true)
@@ -295,7 +330,7 @@ function App() {
       setShowCustomerForm(false)
       await loadCustomers(search)
     } catch (error) {
-      setMessage(error.message || 'حدث خطأ أثناء حفظ الزبون')
+      setMessage(error.message || 'حدث خطأ أثناء الحفظ')
     } finally {
       setSaving(false)
     }
@@ -395,6 +430,65 @@ function App() {
     }
   }
 
+  async function saveNewImage(event) {
+    event.preventDefault()
+
+    if (!selectedPaper) {
+      setMessage('لم يتم اختيار ورقة')
+      return
+    }
+
+    if (!newImageFile) {
+      setMessage('اختر الصورة الجديدة')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ رفع الصورة الجديدة...')
+
+    try {
+      const newImagePath = await uploadPaperImage(
+        newImageFile,
+        selectedPaper.id
+      )
+
+      await savePaperImageHistory({
+        paperId: selectedPaper.id,
+        imagePath: newImagePath,
+        note: newImageNote
+      })
+
+      await updatePaperImagePath(
+        selectedPaper.id,
+        newImagePath
+      )
+
+      await refreshSelectedPaper(selectedPaper.id)
+      await loadImageHistory(selectedPaper.id)
+
+      resetImageForm()
+      setShowImageForm(false)
+      setMessage(
+        'تم استبدال الصورة وحفظ الصورة القديمة في السجل'
+      )
+    } catch (error) {
+      setMessage(
+        error.message || 'حدث خطأ أثناء استبدال الصورة'
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function openOldImage(imagePath) {
+    try {
+      const imageUrl = await createPaperImageUrl(imagePath)
+      window.open(imageUrl, '_blank')
+    } catch (error) {
+      setMessage(`فشل فتح الصورة القديمة: ${error.message}`)
+    }
+  }
+
   function getPaymentsTotal(paper) {
     return (paper.payments || [])
       .filter((payment) => !payment.is_archived)
@@ -452,7 +546,7 @@ function App() {
             </label>
 
             <button type="submit" disabled={loading}>
-              {loading ? 'جارٍ الدخول...' : 'تسجيل الدخول'}
+              تسجيل الدخول
             </button>
           </form>
 
@@ -792,8 +886,11 @@ function App() {
               onClick={() => {
                 setSelectedPaper(null)
                 setSelectedPaperImage(null)
+                setImageHistory([])
                 setShowPaymentForm(false)
+                setShowImageForm(false)
                 resetPaymentForm()
+                resetImageForm()
               }}
             >
               إغلاق
@@ -807,6 +904,68 @@ function App() {
                 src={selectedPaperImage}
                 alt="صورة الورقة"
               />
+            )}
+
+            <button
+              className="image-button"
+              onClick={openReplaceImage}
+            >
+              استبدال الصورة
+            </button>
+
+            {showImageForm && (
+              <form
+                className="image-form"
+                onSubmit={saveNewImage}
+              >
+                <h3>رفع صورة جديدة</h3>
+
+                <label>
+                  الصورة الجديدة
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) =>
+                      setNewImageFile(
+                        event.target.files?.[0] || null
+                      )
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  سبب أو ملاحظة التعديل
+                  <textarea
+                    value={newImageNote}
+                    onChange={(event) =>
+                      setNewImageNote(event.target.value)
+                    }
+                    rows="2"
+                    placeholder="مثال: تمت إضافة أسعار جديدة"
+                  />
+                </label>
+
+                <div className="form-actions">
+                  <button type="submit" disabled={saving}>
+                    {saving
+                      ? 'جارٍ رفع الصورة...'
+                      : 'حفظ الصورة الجديدة'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => {
+                      resetImageForm()
+                      setShowImageForm(false)
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
             )}
 
             <h3>
@@ -957,6 +1116,39 @@ function App() {
               </ul>
             ) : (
               <p>لا توجد دفعات</p>
+            )}
+
+            <h3>سجل الصور</h3>
+
+            {imageHistory.length === 0 ? (
+              <p>لا يوجد سجل صور بعد</p>
+            ) : (
+              <ul className="image-history-list">
+                {imageHistory.map((image) => (
+                  <li key={image.id}>
+                    <div>
+                      <span>
+                        {new Date(
+                          image.created_at
+                        ).toLocaleString('ar-LB')}
+                      </span>
+
+                      {image.note && (
+                        <small>{image.note}</small>
+                      )}
+                    </div>
+
+                    <button
+                      className="small-button"
+                      onClick={() =>
+                        openOldImage(image.image_path)
+                      }
+                    >
+                      فتح الصورة
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </div>

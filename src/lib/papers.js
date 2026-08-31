@@ -41,6 +41,64 @@ export async function createPaper({
       created_by: user.id,
       updated_by: user.id
     })
+    .select(`
+      *,
+      customers (
+        id,
+        name,
+        phone
+      )
+    `)
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function getPapers() {
+  const { data, error } = await supabase
+    .from('papers')
+    .select(`
+      *,
+      customers (
+        id,
+        name,
+        phone
+      ),
+      payments (
+        id,
+        amount,
+        payment_date,
+        note,
+        is_archived
+      )
+    `)
+    .neq('status', 'archived')
+    .order('paper_date', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return data || []
+}
+
+export async function updatePaperImagePath(
+  paperId,
+  imagePath
+) {
+  const user = await getCurrentUser()
+
+  const { data, error } = await supabase
+    .from('papers')
+    .update({
+      image_path: imagePath,
+      updated_by: user.id
+    })
+    .eq('id', paperId)
     .select()
     .single()
 
@@ -49,4 +107,19 @@ export async function createPaper({
   }
 
   return data
+}
+
+export function calculateBalance(totalAmount, payments = []) {
+  if (totalAmount === null || totalAmount === undefined) {
+    return null
+  }
+
+  const paid = payments
+    .filter((payment) => !payment.is_archived)
+    .reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0
+    )
+
+  return Number(totalAmount) - paid
 }
