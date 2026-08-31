@@ -4,8 +4,6 @@
   font-family: 'Cairo', Arial, sans-serif;
   color: #1e293b;
   background: #f1f5f9;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -47,11 +45,6 @@ button {
   background: #2563eb;
   cursor: pointer;
   font-weight: 700;
-  text-decoration: none;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    opacity 0.18s ease;
 }
 
 button:hover,
@@ -59,16 +52,9 @@ a:hover {
   opacity: 0.92;
 }
 
-button:hover {
-  box-shadow: 0 5px 14px rgb(37 99 235 / 20%);
-  transform: translateY(-1px);
-}
-
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
 }
 
 input,
@@ -183,8 +169,7 @@ label select {
   font-size: 0.94rem;
 }
 
-.topbar-actions,
-.start-actions {
+.topbar-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
@@ -553,7 +538,9 @@ label select {
 }
 
 .amount-form,
-.payment-form {
+.payment-form,
+.image-form,
+.archive-form {
   margin: 16px 0;
   padding: 18px;
   border: 1px solid #e1e8f0;
@@ -565,6 +552,30 @@ label select {
   width: 100%;
   margin: 18px 0;
   background: #0f766e;
+}
+
+.image-button {
+  width: 100%;
+  margin: 14px 0;
+  background: #7c3aed;
+}
+
+.status-actions {
+  display: grid;
+  gap: 9px;
+  margin: 20px 0;
+}
+
+.close-paper-button {
+  background: #2563eb;
+}
+
+.reopen-paper-button {
+  background: #d97706;
+}
+
+.archive-button {
+  background: #b42318;
 }
 
 .restore-button {
@@ -580,6 +591,37 @@ label select {
   color: #92400e;
   background: #fef3c7;
   font-weight: 600;
+}
+
+.image-history-list {
+  padding: 0;
+  list-style: none;
+}
+
+.image-history-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.image-history-list li div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.image-history-list small {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.small-button {
+  min-height: 36px;
+  padding: 6px 12px;
+  background: #475569;
 }
 
 .modal-backdrop {
@@ -610,6 +652,11 @@ label select {
   padding-left: 90px;
   color: #0f3d68;
   font-size: 1.4rem;
+}
+
+.paper-details-modal h3 {
+  margin: 20px 0 10px;
+  color: #0f3d68;
 }
 
 .close-button {
@@ -657,8 +704,7 @@ label select {
     padding: 20px;
   }
 
-  .topbar-actions,
-  .start-actions {
+  .topbar-actions {
     flex-direction: column;
   }
 
@@ -758,6 +804,15 @@ label select {
 
   .paper-image {
     max-height: 360px;
+  }
+
+  .image-history-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .small-button {
+    width: 100%;
   }
 }
 

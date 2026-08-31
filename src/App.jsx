@@ -8,19 +8,22 @@ import {
   useParams
 } from 'react-router-dom'
 import { supabase } from './lib/supabase'
+import { getCustomers } from './lib/customers'
 import {
-  createCustomer,
-  getCustomers
-} from './lib/customers'
-import {
+  archivePaper,
   calculateBalance,
+  closePaper,
   createPaper,
   getPapers,
+  reopenPaper,
   restorePaper,
-  updatePaperAmount
+  updatePaperAmount,
+  updatePaperImagePath
 } from './lib/papers'
 import {
   createPaperImageUrl,
+  getPaperImageHistory,
+  savePaperImageHistory,
   uploadPaperImage
 } from './lib/storage'
 import { createPayment } from './lib/payments'
@@ -37,7 +40,8 @@ function App() {
     let active = true
 
     async function loadSession() {
-      const { data } = await supabase.auth.getSession()
+      const { data } =
+        await supabase.auth.getSession()
 
       if (!active) return
 
@@ -224,11 +228,11 @@ function CustomerSelectPage({
     loadCustomers('')
   }, [])
 
-  async function loadCustomers(value) {
+  async function loadCustomers(searchText) {
     setLoading(true)
 
     const { data, error } =
-      await getCustomers(value)
+      await getCustomers(searchText)
 
     if (error) {
       setMessage(error.message)
@@ -238,13 +242,6 @@ function CustomerSelectPage({
 
     setLoading(false)
   }
-
-  const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.name
-        .toLowerCase()
-        .includes(search.toLowerCase())
-  )
 
   return (
     <main dir="rtl" className="app-page">
@@ -282,13 +279,13 @@ function CustomerSelectPage({
         <div className="empty-card">
           جارٍ تحميل الزبائن...
         </div>
-      ) : filteredCustomers.length === 0 ? (
+      ) : customers.length === 0 ? (
         <div className="empty-card">
           لا يوجد زبائن
         </div>
       ) : (
         <section className="customer-picker-list">
-          {filteredCustomers.map((customer) => (
+          {customers.map((customer) => (
             <article
               className="customer-picker-card"
               key={customer.id}
@@ -428,12 +425,16 @@ function CustomerPage({
       <Routes>
         <Route
           index
-          element={<CustomerSummary customer={customer} />}
+          element={
+            <CustomerSummary customer={customer} />
+          }
         />
 
         <Route
           path="papers"
-          element={<CustomerPapers customer={customer} />}
+          element={
+            <CustomerPapers customer={customer} />
+          }
         />
 
         <Route
@@ -445,7 +446,9 @@ function CustomerPage({
 
         <Route
           path="report"
-          element={<CustomerReport customer={customer} />}
+          element={
+            <CustomerReport customer={customer} />
+          }
         />
       </Routes>
     </main>
@@ -485,6 +488,12 @@ function CustomerSummary({ customer }) {
     (paper) => paper.status === 'open'
   )
 
+  const totalPayments = papers.reduce(
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
+    0
+  )
+
   const finalBalance = openPapers.reduce(
     (sum, paper) => {
       const balance = calculateBalance(
@@ -492,14 +501,10 @@ function CustomerSummary({ customer }) {
         paper.payments
       )
 
-      return sum + (balance === null ? 0 : balance)
+      return balance === null
+        ? sum
+        : sum + balance
     },
-    0
-  )
-
-  const totalPayments = papers.reduce(
-    (sum, paper) =>
-      sum + getPaymentsTotal(paper),
     0
   )
 
@@ -557,6 +562,7 @@ function CustomerPapers({ customer }) {
     useState(null)
   const [selectedImage, setSelectedImage] =
     useState(null)
+  const [imageHistory, setImageHistory] = useState([])
 
   const [paperFile, setPaperFile] = useState(null)
   const [paperDate, setPaperDate] = useState(
@@ -632,16 +638,22 @@ function CustomerPapers({ customer }) {
         paper.image_path
       )
 
+      const history = await getPaperImageHistory(
+        paper.id
+      )
+
       setSelectedPaper(paper)
       setSelectedImage(imageUrl)
+      setImageHistory(history)
     } catch (error) {
       setMessage(error.message)
     }
   }
 
   const visiblePapers = papers.filter((paper) => {
-    if (filter === 'all') return true
-    return paper.status === filter
+    return filter === 'all'
+      ? true
+      : paper.status === filter
   })
 
   return (
@@ -764,6 +776,16 @@ function CustomerPapers({ customer }) {
               paper.payments
             )
 
+            const amountText =
+              paper.total_amount === null
+                ? 'غير محسوبة'
+                : paper.total_amount
+
+            const balanceText =
+              balance === null
+                ? 'غير محسوب'
+                : balance.toFixed(2)
+
             return (
               <article
                 className="paper-card"
@@ -771,25 +793,14 @@ function CustomerPapers({ customer }) {
               >
                 <div>
                   <h3>{paper.paper_date}</h3>
-
-                  <p>
-                    القيمة:{' '}
-                    {paper.total_amount === null
-                      ? 'غير محسوبة'
-                      : paper.total_amount}
-                  </p>
+                  <p>القيمة: {amountText}</p>
 
                   <p>
                     الدفعات:{' '}
                     {getPaymentsTotal(paper).toFixed(2)}
                   </p>
 
-                  <p>
-                    الرصيد:{' '}
-                    {balance === null
-                      ? 'غير محسوب'
-                      : balance.toFixed(2)}
-                  </p>
+                  <p>الرصيد: {balanceText}</p>
 
                   <p>
                     الحالة:{' '}
@@ -813,14 +824,17 @@ function CustomerPapers({ customer }) {
         <PaperModal
           paper={selectedPaper}
           imageUrl={selectedImage}
+          imageHistory={imageHistory}
           onClose={() => {
             setSelectedPaper(null)
             setSelectedImage(null)
+            setImageHistory([])
           }}
           onSaved={async () => {
             await loadPapers()
             setSelectedPaper(null)
             setSelectedImage(null)
+            setImageHistory([])
           }}
         />
       )}
@@ -878,14 +892,14 @@ function CustomerPayments({ customer }) {
     }
   }
 
-  const payments = papers.flatMap((paper) =>
-    (paper.payments || [])
+  const payments = papers.flatMap((paper) => {
+    return (paper.payments || [])
       .filter((payment) => !payment.is_archived)
       .map((payment) => ({
         ...payment,
         paperDate: paper.paper_date
       }))
-  )
+  })
 
   return (
     <section className="customer-section">
@@ -1050,7 +1064,9 @@ function CustomerReport({ customer }) {
         paper.payments
       )
 
-      return sum + (balance === null ? 0 : balance)
+      return balance === null
+        ? sum
+        : sum + balance
     },
     0
   )
@@ -1080,42 +1096,48 @@ function CustomerReport({ customer }) {
         <strong>{finalBalance.toFixed(2)}</strong>
       </section>
 
-      {openPapers.map((paper) => {
-        const balance = calculateBalance(
-          paper.total_amount,
-          paper.payments
-        )
+      <section className="papers-list">
+        {openPapers.map((paper) => {
+          const balance = calculateBalance(
+            paper.total_amount,
+            paper.payments
+          )
 
-        return (
-          <article
-            className="report-paper-row"
-            key={paper.id}
-          >
-            <span>
-              التاريخ: {paper.paper_date}
-            </span>
+          const amountText =
+            paper.total_amount === null
+              ? 'غير محسوبة'
+              : paper.total_amount
 
-            <span>
-              القيمة:{' '}
-              {paper.total_amount === null
-                ? 'غير محسوبة'
-                : paper.total_amount}
-            </span>
+          const balanceText =
+            balance === null
+              ? 'غير محسوب'
+              : balance.toFixed(2)
 
-            <span>
-              الدفعات:{' '}
-              {getPaymentsTotal(paper).toFixed(2)}
-            </span>
+          return (
+            <article
+              className="report-paper-row"
+              key={paper.id}
+            >
+              <span>
+                التاريخ: {paper.paper_date}
+              </span>
 
-            <strong>
-              الرصيد:{' '}
-              {balance === null
-                ? 'غير محسوب'
-                : balance.toFixed(2)}
-            </strong>
-          </article>
-        )
-      })}
+              <span>
+                القيمة: {amountText}
+              </span>
+
+              <span>
+                الدفعات:{' '}
+                {getPaymentsTotal(paper).toFixed(2)}
+              </span>
+
+              <strong>
+                الرصيد: {balanceText}
+              </strong>
+            </article>
+          )
+        })}
+      </section>
     </section>
   )
 }
@@ -1123,6 +1145,7 @@ function CustomerReport({ customer }) {
 function PaperModal({
   paper,
   imageUrl,
+  imageHistory,
   onClose,
   onSaved
 }) {
@@ -1130,11 +1153,17 @@ function PaperModal({
     useState(false)
   const [showPaymentForm, setShowPaymentForm] =
     useState(false)
+  const [showImageForm, setShowImageForm] =
+    useState(false)
+  const [showArchiveForm, setShowArchiveForm] =
+    useState(false)
+
   const [amount, setAmount] = useState(
     paper.total_amount === null
       ? ''
       : String(paper.total_amount)
   )
+
   const [paymentAmount, setPaymentAmount] =
     useState('')
   const [paymentDate, setPaymentDate] = useState(
@@ -1142,6 +1171,15 @@ function PaperModal({
   )
   const [paymentNote, setPaymentNote] =
     useState('')
+
+  const [newImageFile, setNewImageFile] =
+    useState(null)
+  const [newImageDescription, setNewImageDescription] =
+    useState('')
+
+  const [archiveReason, setArchiveReason] =
+    useState('')
+
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -1185,12 +1223,38 @@ function PaperModal({
     }
   }
 
-  async function restoreArchivedPaper() {
+  async function replaceImage(event) {
+    event.preventDefault()
+
+    if (!newImageFile) {
+      setMessage('اختر الصورة الجديدة')
+      return
+    }
+
     setSaving(true)
+    setMessage('جارٍ رفع الصورة الجديدة...')
 
     try {
-      await restorePaper(paper.id)
-      setMessage('تم إلغاء الأرشفة وعادت الورقة مفتوحة')
+      const imagePath = await uploadPaperImage(
+        newImageFile,
+        paper.id
+      )
+
+      await savePaperImageHistory({
+        paperId: paper.id,
+        imagePath,
+        description: newImageDescription
+      })
+
+      await updatePaperImagePath(
+        paper.id,
+        imagePath
+      )
+
+      setMessage('تم استبدال الصورة وحفظ القديمة')
+      setShowImageForm(false)
+      setNewImageFile(null)
+      setNewImageDescription('')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -1199,10 +1263,91 @@ function PaperModal({
     }
   }
 
+  async function closeCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await closePaper(paper.id)
+      setMessage('تم إغلاق الورقة')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function reopenCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await reopenPaper(paper.id)
+      setMessage('تمت إعادة فتح الورقة')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await archivePaper(
+        paper.id,
+        archiveReason
+      )
+
+      setMessage('تمت أرشفة الورقة')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function restoreArchivedPaper() {
+    setSaving(true)
+
+    try {
+      await restorePaper(paper.id)
+      setMessage(
+        'تم إلغاء الأرشفة وعادت الورقة مفتوحة'
+      )
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function openHistoryImage(imagePath) {
+    try {
+      const url = await createPaperImageUrl(imagePath)
+      window.open(url, '_blank')
+    } catch (error) {
+      setMessage('فشل فتح الصورة')
+    }
+  }
+
   const balance = calculateBalance(
     paper.total_amount,
     paper.payments
   )
+
+  const amountText =
+    paper.total_amount === null
+      ? 'غير محسوبة'
+      : paper.total_amount
+
+  const balanceText =
+    balance === null
+      ? 'غير محسوب'
+      : balance.toFixed(2)
 
   return (
     <div className="modal-backdrop">
@@ -1225,25 +1370,14 @@ function PaperModal({
         )}
 
         <p>التاريخ: {paper.paper_date}</p>
-
-        <p>
-          القيمة:{' '}
-          {paper.total_amount === null
-            ? 'غير محسوبة'
-            : paper.total_amount}
-        </p>
+        <p>القيمة: {amountText}</p>
 
         <p>
           الدفعات:{' '}
           {getPaymentsTotal(paper).toFixed(2)}
         </p>
 
-        <p>
-          الرصيد:{' '}
-          {balance === null
-            ? 'غير محسوب'
-            : balance.toFixed(2)}
-        </p>
+        <p>الرصيد: {balanceText}</p>
 
         <p>
           الحالة: {getStatusText(paper.status)}
@@ -1253,7 +1387,7 @@ function PaperModal({
           <>
             <p className="archive-info">
               هذه الورقة مؤرشفة. عند إلغاء الأرشفة ستعود
-              كـ ورقة مفتوحة.
+              كورقة مفتوحة.
             </p>
 
             <button
@@ -1299,6 +1433,74 @@ function PaperModal({
 
                 <button type="submit" disabled={saving}>
                   حفظ القيمة
+                </button>
+              </form>
+            )}
+
+            <div className="status-actions">
+              {paper.status === 'open' && (
+                <button
+                  className="close-paper-button"
+                  onClick={closeCurrentPaper}
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'جارٍ الإغلاق...'
+                    : 'إغلاق الورقة'}
+                </button>
+              )}
+
+              {paper.status === 'closed' && (
+                <button
+                  className="reopen-paper-button"
+                  onClick={reopenCurrentPaper}
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'جارٍ الفتح...'
+                    : 'إعادة فتح الورقة'}
+                </button>
+              )}
+
+              <button
+                className="archive-button"
+                onClick={() =>
+                  setShowArchiveForm(!showArchiveForm)
+                }
+                disabled={saving}
+              >
+                أرشفة الورقة
+              </button>
+            </div>
+
+            {showArchiveForm && (
+              <form
+                className="archive-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  archiveCurrentPaper()
+                }}
+              >
+                <label>
+                  سبب الأرشفة
+                  <textarea
+                    value={archiveReason}
+                    onChange={(event) =>
+                      setArchiveReason(event.target.value)
+                    }
+                    rows="3"
+                    placeholder="مثال: تم إلغاء الطلب"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="archive-button"
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'جارٍ الأرشفة...'
+                    : 'تأكيد الأرشفة'}
                 </button>
               </form>
             )}
@@ -1363,7 +1565,95 @@ function PaperModal({
                 </button>
               </form>
             )}
+
+            <button
+              className="image-button"
+              onClick={() =>
+                setShowImageForm(!showImageForm)
+              }
+            >
+              {showImageForm
+                ? 'إلغاء تغيير الصورة'
+                : 'استبدال الصورة'}
+            </button>
+
+            {showImageForm && (
+              <form
+                className="image-form"
+                onSubmit={replaceImage}
+              >
+                <label>
+                  الصورة الجديدة
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) =>
+                      setNewImageFile(
+                        event.target.files?.[0] || null
+                      )
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  وصف الصورة
+                  <textarea
+                    value={newImageDescription}
+                    onChange={(event) =>
+                      setNewImageDescription(
+                        event.target.value
+                      )
+                    }
+                    rows="2"
+                    placeholder="مثال: تمت إضافة أسعار جديدة"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? 'جارٍ رفع الصورة...'
+                    : 'حفظ الصورة الجديدة'}
+                </button>
+              </form>
+            )}
           </>
+        )}
+
+        <h3>سجل الصور</h3>
+
+        {imageHistory.length === 0 ? (
+          <p>لا يوجد سجل صور قديم</p>
+        ) : (
+          <ul className="image-history-list">
+            {imageHistory.map((image) => (
+              <li key={image.id}>
+                <div>
+                  <span>
+                    {new Date(
+                      image.created_at
+                    ).toLocaleString('ar-LB')}
+                  </span>
+
+                  <small>
+                    {image.description ||
+                      image.note ||
+                      'صورة بدون وصف'}
+                  </small>
+                </div>
+
+                <button
+                  className="small-button"
+                  onClick={() =>
+                    openHistoryImage(image.image_path)
+                  }
+                >
+                  فتح الصورة
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
 
         {message && (
