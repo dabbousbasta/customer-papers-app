@@ -24,6 +24,7 @@ import {
   createPayment,
   updatePayment
 } from './lib/payments'
+import { getDashboardData } from './lib/reports'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -31,7 +32,19 @@ function App() {
 
   const [customers, setCustomers] = useState([])
   const [papers, setPapers] = useState([])
+  const [customerReports, setCustomerReports] =
+    useState([])
+
+  const [dashboard, setDashboard] = useState({
+    customersCount: 0,
+    openPapersCount: 0,
+    uncalculatedPapersCount: 0,
+    customersWithOpenPapersCount: 0,
+    totalRemaining: 0
+  })
+
   const [search, setSearch] = useState('')
+  const [showReports, setShowReports] = useState(false)
 
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showPaperForm, setShowPaperForm] = useState(false)
@@ -99,9 +112,7 @@ function App() {
       setLoading(false)
 
       if (data.session) {
-        await loadProfile(data.session.user.id)
-        await loadCustomers('')
-        await loadPapers()
+        await loadAllData()
       }
     }
 
@@ -114,13 +125,12 @@ function App() {
         setSession(newSession)
 
         if (newSession) {
-          await loadProfile(newSession.user.id)
-          await loadCustomers('')
-          await loadPapers()
+          await loadAllData()
         } else {
           setProfile(null)
           setCustomers([])
           setPapers([])
+          setCustomerReports([])
         }
       }
     )
@@ -130,6 +140,20 @@ function App() {
       subscription.unsubscribe()
     }
   }, [])
+
+  async function loadAllData() {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser()
+
+    if (user) {
+      await loadProfile(user.id)
+    }
+
+    await loadCustomers(search)
+    await loadPapers()
+    await loadDashboard()
+  }
 
   async function loadProfile(userId) {
     const { data } = await supabase
@@ -164,6 +188,31 @@ function App() {
     }
   }
 
+  async function loadDashboard() {
+    try {
+      const data = await getDashboardData()
+
+      setDashboard({
+        customersCount: data.customersCount,
+        openPapersCount: data.openPapersCount,
+        uncalculatedPapersCount:
+          data.uncalculatedPapersCount,
+        customersWithOpenPapersCount:
+          data.customersWithOpenPapersCount,
+        totalRemaining: data.totalRemaining
+      })
+
+      setCustomerReports(data.customerReports)
+    } catch (error) {
+      setMessage(`فشل تحميل التقارير: ${error.message}`)
+    }
+  }
+
+  async function refreshData() {
+    await loadPapers()
+    await loadDashboard()
+  }
+
   async function refreshSelectedPaper(paperId) {
     const updatedPapers = await getPapers()
     setPapers(updatedPapers)
@@ -187,6 +236,8 @@ function App() {
 
     const history = await getPaperImageHistory(paperId)
     setImageHistory(history)
+
+    await loadDashboard()
   }
 
   async function openPaperDetails(paper) {
@@ -235,6 +286,7 @@ function App() {
     setProfile(null)
     setCustomers([])
     setPapers([])
+    setCustomerReports([])
   }
 
   function resetCustomerForm() {
@@ -341,6 +393,7 @@ function App() {
       resetCustomerForm()
       setShowCustomerForm(false)
       await loadCustomers(search)
+      await loadDashboard()
     } catch (error) {
       setMessage(error.message || 'حدث خطأ أثناء الحفظ')
     } finally {
@@ -380,11 +433,11 @@ function App() {
         totalAmount
       })
 
-      await loadPapers()
-
       resetPaperForm()
       setShowPaperForm(false)
       setMessage('تمت إضافة الورقة بنجاح')
+
+      await refreshData()
     } catch (error) {
       setMessage(error.message || 'حدث خطأ أثناء حفظ الورقة')
     } finally {
@@ -509,9 +562,11 @@ function App() {
       )
 
       await loadPapers()
+      await loadDashboard()
 
       setSelectedPaper(null)
       setSelectedPaperImage(null)
+      setImageHistory([])
       resetArchiveForm()
 
       setMessage('تمت أرشفة الورقة')
@@ -571,6 +626,10 @@ function App() {
     if (status === 'closed') return 'مغلقة'
     if (status === 'archived') return 'مؤرشفة'
     return status
+  }
+
+  function formatAmount(value) {
+    return Number(value || 0).toFixed(2)
   }
 
   if (loading) {
@@ -644,6 +703,39 @@ function App() {
         </button>
       </header>
 
+      <section className="dashboard-cards">
+        <article className="dashboard-card">
+          <span>الزبائن</span>
+          <strong>{dashboard.customersCount}</strong>
+        </article>
+
+        <article className="dashboard-card">
+          <span>الأوراق المفتوحة</span>
+          <strong>{dashboard.openPapersCount}</strong>
+        </article>
+
+        <article className="dashboard-card">
+          <span>غير محسوبة</span>
+          <strong>
+            {dashboard.uncalculatedPapersCount}
+          </strong>
+        </article>
+
+        <article className="dashboard-card">
+          <span>زبائن عليهم أوراق</span>
+          <strong>
+            {dashboard.customersWithOpenPapersCount}
+          </strong>
+        </article>
+
+        <article className="dashboard-card total-card">
+          <span>إجمالي الأرصدة</span>
+          <strong>
+            {formatAmount(dashboard.totalRemaining)}
+          </strong>
+        </article>
+      </section>
+
       <section className="section-header">
         <div>
           <h2>الزبائن والأوراق</h2>
@@ -660,8 +752,55 @@ function App() {
           <button onClick={openAddCustomer}>
             إضافة زبون
           </button>
+
+          <button
+            className="reports-button"
+            onClick={() => setShowReports(!showReports)}
+          >
+            {showReports
+              ? 'إخفاء التقارير'
+              : 'عرض التقارير'}
+          </button>
         </div>
       </section>
+
+      {showReports && (
+        <section className="reports-card">
+          <h2>تقرير الأرصدة حسب الزبون</h2>
+
+          {customerReports.length === 0 ? (
+            <p>لا يوجد زبائن عليهم أرصدة مفتوحة</p>
+          ) : (
+            <div className="reports-list">
+              {customerReports.map((report) => (
+                <article
+                  className="report-row"
+                  key={report.customerId}
+                >
+                  <div>
+                    <h3>{report.name}</h3>
+                    <p>
+                      عدد الأوراق المفتوحة:{' '}
+                      {report.openPapersCount}
+                    </p>
+                  </div>
+
+                  <strong>
+                    {formatAmount(report.totalRemaining)}
+                  </strong>
+                </article>
+              ))}
+
+              <div className="report-total">
+                الإجمالي العام:
+                <strong>
+                  {formatAmount(dashboard.totalRemaining)}
+                </strong>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="search-box">
         <input
@@ -918,14 +1057,14 @@ function App() {
 
                     <p>
                       مجموع الدفعات:{' '}
-                      {getPaymentsTotal(paper).toFixed(2)}
+                      {formatAmount(getPaymentsTotal(paper))}
                     </p>
 
                     <p>
                       الرصيد:{' '}
                       {balance === null
                         ? 'غير محسوب'
-                        : balance.toFixed(2)}
+                        : formatAmount(balance)}
                     </p>
 
                     <p>
@@ -1054,7 +1193,7 @@ function App() {
 
             <p>
               مجموع الدفعات:{' '}
-              {getPaymentsTotal(selectedPaper).toFixed(2)}
+              {formatAmount(getPaymentsTotal(selectedPaper))}
             </p>
 
             <p>
@@ -1064,15 +1203,16 @@ function App() {
                 selectedPaper.payments
               ) === null
                 ? 'غير محسوب'
-                : calculateBalance(
-                    selectedPaper.total_amount,
-                    selectedPaper.payments
-                  ).toFixed(2)}
+                : formatAmount(
+                    calculateBalance(
+                      selectedPaper.total_amount,
+                      selectedPaper.payments
+                    )
+                  )}
             </p>
 
             <p>
-              الحالة:{' '}
-              {getStatusText(selectedPaper.status)}
+              الحالة: {getStatusText(selectedPaper.status)}
             </p>
 
             {selectedPaper.note && (
@@ -1244,7 +1384,7 @@ function App() {
                       <div>
                         <span>
                           {payment.payment_date} —{' '}
-                          {Number(payment.amount).toFixed(2)}
+                          {formatAmount(payment.amount)}
                         </span>
 
                         {payment.note && (

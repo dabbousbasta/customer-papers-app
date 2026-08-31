@@ -35,7 +35,6 @@ button {
   cursor: pointer;
   color: white;
   background: #1769aa;
-  transition: opacity 0.2s ease;
 }
 
 button:hover {
@@ -128,6 +127,41 @@ label select {
   border: 1px solid rgb(255 255 255 / 40%);
 }
 
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.dashboard-card {
+  display: flex;
+  min-height: 120px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(20 40 80 / 7%);
+}
+
+.dashboard-card span {
+  color: #64748b;
+}
+
+.dashboard-card strong {
+  font-size: 1.8rem;
+  color: #1769aa;
+}
+
+.total-card {
+  background: #e8f4f2;
+}
+
+.total-card strong {
+  color: #0f766e;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -152,6 +186,62 @@ label select {
 
 .header-actions button:first-child {
   background: #0f766e;
+}
+
+.reports-button {
+  background: #7c3aed;
+}
+
+.reports-card {
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(20 40 80 / 7%);
+}
+
+.reports-card h2 {
+  margin-top: 0;
+}
+
+.reports-list {
+  display: grid;
+  gap: 10px;
+}
+
+.report-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.report-row h3,
+.report-row p {
+  margin: 3px 0;
+}
+
+.report-row p {
+  color: #64748b;
+}
+
+.report-row strong {
+  color: #0f766e;
+}
+
+.report-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 2px solid #d7deea;
+}
+
+.report-total strong {
+  color: #1769aa;
 }
 
 .search-box {
@@ -378,6 +468,12 @@ label select {
   background: #475569;
 }
 
+@media (max-width: 900px) {
+  .dashboard-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 600px) {
   main {
     width: min(100% - 20px, 1100px);
@@ -391,6 +487,20 @@ label select {
 
   .secondary-button {
     width: 100%;
+  }
+
+  .dashboard-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .dashboard-card {
+    min-height: 105px;
+    padding: 14px;
+  }
+
+  .dashboard-card strong {
+    font-size: 1.5rem;
   }
 
   .section-header {
@@ -426,7 +536,8 @@ label select {
   }
 
   .payments-list li,
-  .image-history-list li {
+  .image-history-list li,
+  .report-row {
     align-items: stretch;
     flex-direction: column;
   }
