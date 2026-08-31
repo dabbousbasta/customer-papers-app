@@ -109,6 +109,55 @@ export async function updatePaperImagePath(
   return data
 }
 
+export async function closePaper(paperId) {
+  const { data, error } = await supabase.rpc(
+    'close_paper',
+    {
+      p_paper_id: paperId
+    }
+  )
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function reopenPaper(paperId) {
+  const { data, error } = await supabase.rpc(
+    'reopen_paper',
+    {
+      p_paper_id: paperId
+    }
+  )
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function archivePaper(
+  paperId,
+  reason
+) {
+  const { data, error } = await supabase.rpc(
+    'archive_paper',
+    {
+      p_paper_id: paperId,
+      p_reason: reason || null
+    }
+  )
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
 export function calculateBalance(totalAmount, payments = []) {
   if (totalAmount === null || totalAmount === undefined) {
     return null

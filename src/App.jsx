@@ -6,9 +6,12 @@ import {
   updateCustomer
 } from './lib/customers'
 import {
+  archivePaper,
   calculateBalance,
+  closePaper,
   createPaper,
   getPapers,
+  reopenPaper,
   updatePaperImagePath
 } from './lib/papers'
 import {
@@ -32,7 +35,6 @@ function App() {
 
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showPaperForm, setShowPaperForm] = useState(false)
-
   const [editingCustomer, setEditingCustomer] = useState(null)
 
   const [selectedPaper, setSelectedPaper] = useState(null)
@@ -49,6 +51,10 @@ function App() {
   const [newImageFile, setNewImageFile] = useState(null)
   const [newImageNote, setNewImageNote] = useState('')
   const [imageHistory, setImageHistory] = useState([])
+
+  const [showArchiveForm, setShowArchiveForm] =
+    useState(false)
+  const [archiveReason, setArchiveReason] = useState('')
 
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -166,7 +172,10 @@ function App() {
       (paper) => paper.id === paperId
     )
 
-    if (!updatedPaper) return
+    if (!updatedPaper) {
+      setSelectedPaper(null)
+      return
+    }
 
     setSelectedPaper(updatedPaper)
 
@@ -175,6 +184,9 @@ function App() {
     )
 
     setSelectedPaperImage(imageUrl)
+
+    const history = await getPaperImageHistory(paperId)
+    setImageHistory(history)
   }
 
   async function openPaperDetails(paper) {
@@ -192,15 +204,11 @@ function App() {
       setImageHistory(history)
       setShowPaymentForm(false)
       setShowImageForm(false)
+      setShowArchiveForm(false)
       setMessage('')
     } catch (error) {
       setMessage(`فشل تحميل التفاصيل: ${error.message}`)
     }
-  }
-
-  async function loadImageHistory(paperId) {
-    const history = await getPaperImageHistory(paperId)
-    setImageHistory(history)
   }
 
   async function signIn(event) {
@@ -223,7 +231,6 @@ function App() {
 
   async function signOut() {
     await supabase.auth.signOut()
-
     setSession(null)
     setProfile(null)
     setCustomers([])
@@ -255,6 +262,11 @@ function App() {
   function resetImageForm() {
     setNewImageFile(null)
     setNewImageNote('')
+  }
+
+  function resetArchiveForm() {
+    setArchiveReason('')
+    setShowArchiveForm(false)
   }
 
   function openAddCustomer() {
@@ -464,7 +476,6 @@ function App() {
       )
 
       await refreshSelectedPaper(selectedPaper.id)
-      await loadImageHistory(selectedPaper.id)
 
       resetImageForm()
       setShowImageForm(false)
@@ -474,6 +485,63 @@ function App() {
     } catch (error) {
       setMessage(
         error.message || 'حدث خطأ أثناء استبدال الصورة'
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveArchive(event) {
+    event.preventDefault()
+
+    if (!selectedPaper) {
+      setMessage('لم يتم اختيار ورقة')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ أرشفة الورقة...')
+
+    try {
+      await archivePaper(
+        selectedPaper.id,
+        archiveReason
+      )
+
+      await loadPapers()
+
+      setSelectedPaper(null)
+      setSelectedPaperImage(null)
+      resetArchiveForm()
+
+      setMessage('تمت أرشفة الورقة')
+    } catch (error) {
+      setMessage(error.message || 'حدث خطأ أثناء الأرشفة')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function changePaperStatus(action) {
+    if (!selectedPaper) return
+
+    setSaving(true)
+    setMessage('جارٍ تحديث حالة الورقة...')
+
+    try {
+      if (action === 'close') {
+        await closePaper(selectedPaper.id)
+      }
+
+      if (action === 'reopen') {
+        await reopenPaper(selectedPaper.id)
+      }
+
+      await refreshSelectedPaper(selectedPaper.id)
+      setMessage('تم تحديث حالة الورقة')
+    } catch (error) {
+      setMessage(
+        error.message || 'حدث خطأ أثناء تحديث الحالة'
       )
     } finally {
       setSaving(false)
@@ -889,8 +957,10 @@ function App() {
                 setImageHistory([])
                 setShowPaymentForm(false)
                 setShowImageForm(false)
+                setShowArchiveForm(false)
                 resetPaymentForm()
                 resetImageForm()
+                resetArchiveForm()
               }}
             >
               إغلاق
@@ -1000,8 +1070,87 @@ function App() {
                   ).toFixed(2)}
             </p>
 
+            <p>
+              الحالة:{' '}
+              {getStatusText(selectedPaper.status)}
+            </p>
+
             {selectedPaper.note && (
               <p>الملاحظة: {selectedPaper.note}</p>
+            )}
+
+            <div className="status-actions">
+              {selectedPaper.status === 'open' && (
+                <button
+                  className="close-paper-button"
+                  onClick={() =>
+                    changePaperStatus('close')
+                  }
+                  disabled={saving}
+                >
+                  إغلاق الورقة
+                </button>
+              )}
+
+              {selectedPaper.status === 'closed' && (
+                <button
+                  className="reopen-paper-button"
+                  onClick={() =>
+                    changePaperStatus('reopen')
+                  }
+                  disabled={saving}
+                >
+                  إعادة فتح الورقة
+                </button>
+              )}
+
+              <button
+                className="archive-button"
+                onClick={() => {
+                  setShowArchiveForm(true)
+                  setMessage('')
+                }}
+                disabled={saving}
+              >
+                أرشفة الورقة
+              </button>
+            </div>
+
+            {showArchiveForm && (
+              <form
+                className="archive-form"
+                onSubmit={saveArchive}
+              >
+                <h3>أرشفة الورقة</h3>
+
+                <label>
+                  سبب الأرشفة، اختياري
+                  <textarea
+                    value={archiveReason}
+                    onChange={(event) =>
+                      setArchiveReason(event.target.value)
+                    }
+                    rows="3"
+                    placeholder="مثال: تم إلغاء الطلب"
+                  />
+                </label>
+
+                <div className="form-actions">
+                  <button type="submit" disabled={saving}>
+                    {saving
+                      ? 'جارٍ الأرشفة...'
+                      : 'تأكيد الأرشفة'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={resetArchiveForm}
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
             )}
 
             <button
