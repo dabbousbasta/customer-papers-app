@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Link,
   Navigate,
@@ -13,24 +13,16 @@ import {
   getCustomers
 } from './lib/customers'
 import {
-  archivePaper,
   calculateBalance,
-  closePaper,
   createPaper,
   getPapers,
-  reopenPaper,
-  updatePaperAmount,
-  updatePaperImagePath
+  updatePaperAmount
 } from './lib/papers'
 import {
   createPaperImageUrl,
-  getPaperImageHistory,
-  savePaperImageHistory,
   uploadPaperImage
 } from './lib/storage'
-import {
-  createPayment
-} from './lib/payments'
+import { createPayment } from './lib/payments'
 import {
   buildCustomerWhatsAppReport,
   openWhatsAppMessage
@@ -38,20 +30,19 @@ import {
 
 function App() {
   const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let mounted = true
+    let active = true
 
     async function loadSession() {
       const { data } =
         await supabase.auth.getSession()
 
-      if (!mounted) return
-
-      setSession(data.session)
-      setLoading(false)
+      if (active) {
+        setSession(data.session)
+        setLoading(false)
+      }
     }
 
     loadSession()
@@ -66,39 +57,19 @@ function App() {
     )
 
     return () => {
-      mounted = false
+      active = false
       subscription.unsubscribe()
     }
   }, [])
 
-  useEffect(() => {
-    async function loadProfile() {
-      if (!session?.user?.id) {
-        setProfile(null)
-        return
-      }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', session.user.id)
-        .single()
-
-      setProfile(data || null)
-    }
-
-    loadProfile()
-  }, [session])
-
   async function signOut() {
     await supabase.auth.signOut()
     setSession(null)
-    setProfile(null)
   }
 
   if (loading) {
     return (
-      <main dir="rtl">
+      <main dir="rtl" className="page-center">
         <p>جارٍ التحميل...</p>
       </main>
     )
@@ -115,7 +86,6 @@ function App() {
         element={
           <CustomerSelectPage
             session={session}
-            profile={profile}
             signOut={signOut}
           />
         }
@@ -124,9 +94,8 @@ function App() {
       <Route
         path="/customer/:customerId/*"
         element={
-          <CustomerWorkspace
+          <CustomerPage
             session={session}
-            profile={profile}
             signOut={signOut}
           />
         }
@@ -144,11 +113,11 @@ function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  async function signIn(event) {
+  async function login(event) {
     event.preventDefault()
-    setLoading(true)
+    setSaving(true)
     setMessage('')
 
     const { error } =
@@ -161,7 +130,7 @@ function LoginPage() {
       setMessage(`فشل تسجيل الدخول: ${error.message}`)
     }
 
-    setLoading(false)
+    setSaving(false)
   }
 
   return (
@@ -170,7 +139,7 @@ function LoginPage() {
         <h1>نظام أوراق الزبائن</h1>
         <p>تسجيل الدخول</p>
 
-        <form onSubmit={signIn}>
+        <form onSubmit={login}>
           <label>
             البريد الإلكتروني
             <input
@@ -195,8 +164,8 @@ function LoginPage() {
             />
           </label>
 
-          <button type="submit" disabled={loading}>
-            {loading
+          <button type="submit" disabled={saving}>
+            {saving
               ? 'جارٍ الدخول...'
               : 'تسجيل الدخول'}
           </button>
@@ -210,32 +179,25 @@ function LoginPage() {
   )
 }
 
-function AppHeader({
-  profile,
+function Header({
   session,
   signOut,
-  title,
-  showBack = false
+  title
 }) {
   return (
     <header className="topbar">
       <div>
-        <h1>{title || 'نظام أوراق الزبائن'}</h1>
-
-        <p>
-          مرحبًا {profile?.display_name || session.user.email}
-        </p>
+        <h1>{title}</h1>
+        <p>{session.user.email}</p>
       </div>
 
       <div className="topbar-actions">
-        {showBack && (
-          <Link
-            to="/"
-            className="topbar-link"
-          >
-            اختيار زبون آخر
-          </Link>
-        )}
+        <Link
+          to="/"
+          className="topbar-link"
+        >
+          اختيار زبون آخر
+        </Link>
 
         <button
           onClick={signOut}
@@ -250,32 +212,26 @@ function AppHeader({
 
 function CustomerSelectPage({
   session,
-  profile,
   signOut
 }) {
   const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [notes, setNotes] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    loadCustomers()
+    loadCustomers('')
   }, [])
 
-  async function loadCustomers(searchText = '') {
+  async function loadCustomers(value) {
     setLoading(true)
 
     const { data, error } =
-      await getCustomers(searchText)
+      await getCustomers(value)
 
     if (error) {
-      setMessage(`فشل تحميل الزبائن: ${error.message}`)
+      setMessage(error.message)
     } else {
       setCustomers(data || [])
     }
@@ -283,205 +239,95 @@ function CustomerSelectPage({
     setLoading(false)
   }
 
-  async function saveCustomer(event) {
-    event.preventDefault()
-    setSaving(true)
-    setMessage('')
-
-    try {
-      const customer = await createCustomer({
-        name,
-        phone,
-        notes
-      })
-
-      setName('')
-      setPhone('')
-      setNotes('')
-      setShowForm(false)
-      await loadCustomers(search)
-      navigate(`/customer/${customer.id}`)
-    } catch (error) {
-      setMessage(
-        error.message || 'حدث خطأ أثناء الإضافة'
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const visibleCustomers = useMemo(() => {
-    const text = search.trim().toLowerCase()
-
-    if (!text) return customers
-
-    return customers.filter((customer) =>
-      customer.name.toLowerCase().includes(text)
-    )
-  }, [customers, search])
+  const filteredCustomers = customers.filter(
+    (customer) =>
+      customer.name
+        .toLowerCase()
+        .includes(search.toLowerCase())
+  )
 
   return (
     <main dir="rtl" className="app-page">
-      <AppHeader
-        profile={profile}
+      <Header
         session={session}
         signOut={signOut}
         title="اختيار الزبون"
       />
 
       <section className="customer-start-card">
-        <h2>ابدأ باختيار الزبون</h2>
-
+        <h2>اختر الزبون للبدء</h2>
         <p>
-          اختر الزبون أولًا للوصول إلى كل أوراقه ودفعاته
-          وتقاريره.
+          بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.
         </p>
-
-        <div className="start-actions">
-          <button
-            onClick={() => setShowForm(!showForm)}
-          >
-            {showForm
-              ? 'إلغاء إضافة زبون'
-              : 'إضافة زبون جديد'}
-          </button>
-
-          {visibleCustomers.length > 0 && (
-            <button
-              className="quick-paper-button"
-              onClick={() =>
-                navigate(
-                  `/customer/${visibleCustomers[0].id}/papers`
-                )
-              }
-            >
-              إضافة ورقة سريعة
-            </button>
-          )}
-        </div>
       </section>
 
-      {showForm && (
-        <section className="form-card">
-          <h2>إضافة زبون جديد</h2>
+      <section className="search-box">
+        <input
+          type="search"
+          placeholder="ابحث عن اسم الزبون..."
+          value={search}
+          onChange={async (event) => {
+            const value = event.target.value
+            setSearch(value)
+            await loadCustomers(value)
+          }}
+        />
+      </section>
 
-          <form onSubmit={saveCustomer}>
-            <label>
-              اسم الزبون
-              <input
-                value={name}
-                onChange={(event) =>
-                  setName(event.target.value)
-                }
-                required
-              />
-            </label>
-
-            <label>
-              الهاتف
-              <input
-                value={phone}
-                onChange={(event) =>
-                  setPhone(event.target.value)
-                }
-              />
-            </label>
-
-            <label>
-              ملاحظات
-              <textarea
-                value={notes}
-                onChange={(event) =>
-                  setNotes(event.target.value)
-                }
-                rows="3"
-              />
-            </label>
-
-            <button type="submit" disabled={saving}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ الزبون'}
-            </button>
-          </form>
-        </section>
+      {message && (
+        <p className="message error">{message}</p>
       )}
 
-      <section className="customer-picker">
-        <div className="section-header">
-          <div>
-            <h2>الزبائن</h2>
-            <p>
-              عدد النتائج: {visibleCustomers.length}
-            </p>
-          </div>
+      {loading ? (
+        <div className="empty-card">
+          جارٍ تحميل الزبائن...
         </div>
-
-        <section className="search-box">
-          <input
-            type="search"
-            placeholder="ابحث عن اسم الزبون..."
-            value={search}
-            onChange={async (event) => {
-              const value = event.target.value
-              setSearch(value)
-              await loadCustomers(value)
-            }}
-          />
-        </section>
-
-        {message && <p className="message">{message}</p>}
-
-        {loading ? (
-          <div className="empty-card">
-            جارٍ تحميل الزبائن...
-          </div>
-        ) : visibleCustomers.length === 0 ? (
-          <div className="empty-card">
-            لا يوجد زبائن مطابقون
-          </div>
-        ) : (
-          <div className="customer-picker-list">
-            {visibleCustomers.map((customer) => (
-              <article
-                className="customer-picker-card"
-                key={customer.id}
+      ) : filteredCustomers.length === 0 ? (
+        <div className="empty-card">
+          لا يوجد زبائن
+        </div>
+      ) : (
+        <section className="customer-picker-list">
+          {filteredCustomers.map((customer) => (
+            <article
+              className="customer-picker-card"
+              key={customer.id}
+            >
+              <button
+                className="customer-picker-item"
+                onClick={() =>
+                  navigate(
+                    `/customer/${customer.id}`
+                  )
+                }
               >
-                <button
-                  className="customer-picker-item"
-                  onClick={() =>
-                    navigate(
-                      `/customer/${customer.id}`
-                    )
-                  }
-                >
-                  <span>{customer.name}</span>
+                <strong>{customer.name}</strong>
 
-                  {customer.phone && (
-                    <small>{customer.phone}</small>
-                  )}
-                </button>
+                {customer.phone && (
+                  <small>{customer.phone}</small>
+                )}
+              </button>
 
-                <button
-                  className="quick-paper-button"
-                  onClick={() =>
-                    navigate(
-                      `/customer/${customer.id}/papers`
-                    )
-                  }
-                >
-                  إضافة ورقة
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+              <button
+                className="quick-paper-button"
+                onClick={() =>
+                  navigate(
+                    `/customer/${customer.id}/papers`
+                  )
+                }
+              >
+                إضافة ورقة
+              </button>
+            </article>
+          ))}
+        </section>
+      )}
     </main>
   )
 }
 
-function CustomerWorkspace({
+function CustomerPage({
   session,
-  profile,
   signOut
 }) {
   const { customerId } = useParams()
@@ -495,24 +341,19 @@ function CustomerWorkspace({
   async function loadCustomer() {
     setLoading(true)
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('customers')
       .select('*')
       .eq('id', customerId)
       .single()
 
-    if (error) {
-      setCustomer(null)
-    } else {
-      setCustomer(data)
-    }
-
+    setCustomer(data || null)
     setLoading(false)
   }
 
   if (loading) {
     return (
-      <main dir="rtl">
+      <main dir="rtl" className="page-center">
         <p>جارٍ تحميل الزبون...</p>
       </main>
     )
@@ -521,12 +362,10 @@ function CustomerWorkspace({
   if (!customer) {
     return (
       <main dir="rtl" className="app-page">
-        <AppHeader
-          profile={profile}
+        <Header
           session={session}
           signOut={signOut}
           title="الزبون غير موجود"
-          showBack
         />
 
         <div className="empty-card">
@@ -538,12 +377,10 @@ function CustomerWorkspace({
 
   return (
     <main dir="rtl" className="app-page">
-      <AppHeader
-        profile={profile}
+      <Header
         session={session}
         signOut={signOut}
         title={customer.name}
-        showBack
       />
 
       <section className="customer-context-card">
@@ -566,7 +403,7 @@ function CustomerWorkspace({
 
       <nav className="customer-tabs">
         <Link to={`/customer/${customerId}`}>
-          ملخص
+          الملخص
         </Link>
 
         <Link
@@ -586,58 +423,29 @@ function CustomerWorkspace({
         >
           التقرير
         </Link>
-
-        <Link
-          to={`/customer/${customerId}/activity`}
-        >
-          النشاط
-        </Link>
       </nav>
 
       <Routes>
         <Route
           index
-          element={
-            <CustomerSummary
-              customer={customer}
-            />
-          }
+          element={<CustomerSummary customer={customer} />}
         />
 
         <Route
           path="papers"
-          element={
-            <CustomerPapers
-              customer={customer}
-            />
-          }
+          element={<CustomerPapers customer={customer} />}
         />
 
         <Route
           path="payments"
           element={
-            <CustomerPayments
-              customer={customer}
-            />
+            <CustomerPayments customer={customer} />
           }
         />
 
         <Route
           path="report"
-          element={
-            <CustomerReport
-              customer={customer}
-            />
-          }
-        />
-
-        <Route
-          path="activity"
-          element={
-            <CustomerActivity
-              customer={customer}
-            />
-          }
+          element={<CustomerReport customer={customer} />}
         />
       </Routes>
     </main>
@@ -655,8 +463,8 @@ function CustomerSummary({ customer }) {
   async function loadPapers() {
     try {
       const data = await getPapers({
-        includeArchived: true,
-        customerId: customer.id
+        customerId: customer.id,
+        includeArchived: true
       })
 
       setPapers(data)
@@ -665,11 +473,19 @@ function CustomerSummary({ customer }) {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="empty-card">
+        جارٍ تحميل الملخص...
+      </div>
+    )
+  }
+
   const openPapers = papers.filter(
     (paper) => paper.status === 'open'
   )
 
-  const totalRemaining = openPapers.reduce(
+  const finalBalance = openPapers.reduce(
     (sum, paper) => {
       const balance = calculateBalance(
         paper.total_amount,
@@ -681,28 +497,11 @@ function CustomerSummary({ customer }) {
     0
   )
 
-  const totalValues = openPapers.reduce(
-    (sum, paper) =>
-      sum +
-      (paper.total_amount === null
-        ? 0
-        : Number(paper.total_amount)),
-    0
-  )
-
   const totalPayments = papers.reduce(
     (sum, paper) =>
       sum + getPaymentsTotal(paper),
     0
   )
-
-  if (loading) {
-    return (
-      <div className="empty-card">
-        جارٍ تحميل الملخص...
-      </div>
-    )
-  }
 
   return (
     <section className="customer-section">
@@ -713,13 +512,8 @@ function CustomerSummary({ customer }) {
         </article>
 
         <article className="summary-card">
-          <span>الأوراق المفتوحة</span>
+          <span>المفتوحة</span>
           <strong>{openPapers.length}</strong>
-        </article>
-
-        <article className="summary-card">
-          <span>إجمالي القيم</span>
-          <strong>{totalValues.toFixed(2)}</strong>
         </article>
 
         <article className="summary-card">
@@ -729,7 +523,7 @@ function CustomerSummary({ customer }) {
 
         <article className="summary-card total-summary-card">
           <span>الرصيد النهائي</span>
-          <strong>{totalRemaining.toFixed(2)}</strong>
+          <strong>{finalBalance.toFixed(2)}</strong>
         </article>
       </div>
 
@@ -743,16 +537,9 @@ function CustomerSummary({ customer }) {
 
         <Link
           className="secondary-link"
-          to={`/customer/${customer.id}/payments`}
-        >
-          دفعات الزبون
-        </Link>
-
-        <Link
-          className="secondary-link"
           to={`/customer/${customer.id}/report`}
         >
-          تقرير الزبون
+          التقرير
         </Link>
       </div>
     </section>
@@ -762,8 +549,15 @@ function CustomerSummary({ customer }) {
 function CustomerPapers({ customer }) {
   const [papers, setPapers] = useState([])
   const [filter, setFilter] = useState('all')
-  const [showAddForm, setShowAddForm] =
-    useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [selectedPaper, setSelectedPaper] =
+    useState(null)
+  const [selectedImage, setSelectedImage] =
+    useState(null)
+
   const [paperFile, setPaperFile] = useState(null)
   const [paperDate, setPaperDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -771,15 +565,6 @@ function CustomerPapers({ customer }) {
   const [paperNote, setPaperNote] = useState('')
   const [totalAmount, setTotalAmount] =
     useState('')
-  const [message, setMessage] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const [selectedPaper, setSelectedPaper] =
-    useState(null)
-  const [selectedPaperImage, setSelectedPaperImage] =
-    useState(null)
-  const [imageHistory, setImageHistory] =
-    useState([])
 
   useEffect(() => {
     loadPapers()
@@ -788,13 +573,13 @@ function CustomerPapers({ customer }) {
   async function loadPapers() {
     try {
       const data = await getPapers({
-        includeArchived: true,
-        customerId: customer.id
+        customerId: customer.id,
+        includeArchived: true
       })
 
       setPapers(data)
     } catch (error) {
-      setMessage(`فشل تحميل الأوراق: ${error.message}`)
+      setMessage(error.message)
     }
   }
 
@@ -826,18 +611,16 @@ function CustomerPapers({ customer }) {
       })
 
       setPaperFile(null)
+      setPaperNote('')
+      setTotalAmount('')
       setPaperDate(
         new Date().toISOString().slice(0, 10)
       )
-      setPaperNote('')
-      setTotalAmount('')
-      setShowAddForm(false)
+      setShowForm(false)
       setMessage('تمت إضافة الورقة')
       await loadPapers()
     } catch (error) {
-      setMessage(
-        error.message || 'حدث خطأ أثناء الإضافة'
-      )
+      setMessage(error.message)
     } finally {
       setSaving(false)
     }
@@ -849,15 +632,10 @@ function CustomerPapers({ customer }) {
         paper.image_path
       )
 
-      const history = await getPaperImageHistory(
-        paper.id
-      )
-
       setSelectedPaper(paper)
-      setSelectedPaperImage(imageUrl)
-      setImageHistory(history)
+      setSelectedImage(imageUrl)
     } catch (error) {
-      setMessage(`فشل فتح الورقة: ${error.message}`)
+      setMessage(error.message)
     }
   }
 
@@ -871,13 +649,15 @@ function CustomerPapers({ customer }) {
       <div className="section-header">
         <div>
           <h2>أوراق {customer.name}</h2>
-          <p>عدد النتائج: {visiblePapers.length}</p>
+          <p>
+            عدد النتائج: {visiblePapers.length}
+          </p>
         </div>
 
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => setShowForm(!showForm)}
         >
-          {showAddForm
+          {showForm
             ? 'إلغاء'
             : 'إضافة ورقة'}
         </button>
@@ -904,7 +684,7 @@ function CustomerPapers({ customer }) {
         ))}
       </div>
 
-      {showAddForm && (
+      {showForm && (
         <section className="form-card">
           <h2>إضافة ورقة للزبون</h2>
 
@@ -960,17 +740,21 @@ function CustomerPapers({ customer }) {
             </label>
 
             <button type="submit" disabled={saving}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ الورقة'}
+              {saving
+                ? 'جارٍ الحفظ...'
+                : 'حفظ الورقة'}
             </button>
           </form>
         </section>
       )}
 
-      {message && <p className="message">{message}</p>}
+      {message && (
+        <p className="message error">{message}</p>
+      )}
 
       {visiblePapers.length === 0 ? (
         <div className="empty-card">
-          لا توجد أوراق في هذا القسم
+          لا توجد أوراق
         </div>
       ) : (
         <div className="papers-list">
@@ -1026,20 +810,17 @@ function CustomerPapers({ customer }) {
       )}
 
       {selectedPaper && (
-        <PaperDetailsModal
+        <PaperModal
           paper={selectedPaper}
-          imageUrl={selectedPaperImage}
-          imageHistory={imageHistory}
+          imageUrl={selectedImage}
           onClose={() => {
             setSelectedPaper(null)
-            setSelectedPaperImage(null)
-            setImageHistory([])
+            setSelectedImage(null)
           }}
-          onChanged={async () => {
+          onSaved={async () => {
             await loadPapers()
             setSelectedPaper(null)
-            setSelectedPaperImage(null)
-            setImageHistory([])
+            setSelectedImage(null)
           }}
         />
       )}
@@ -1060,8 +841,8 @@ function CustomerPayments({ customer }) {
   async function loadPapers() {
     try {
       const data = await getPapers({
-        includeArchived: true,
-        customerId: customer.id
+        customerId: customer.id,
+        includeArchived: true
       })
 
       setPapers(data)
@@ -1075,10 +856,6 @@ function CustomerPayments({ customer }) {
 
     const form = new FormData(event.currentTarget)
 
-    const amount = form.get('amount')
-    const paymentDate = form.get('paymentDate')
-    const note = form.get('note')
-
     if (!selectedPaperId) {
       setMessage('اختر الورقة')
       return
@@ -1087,9 +864,9 @@ function CustomerPayments({ customer }) {
     try {
       await createPayment({
         paperId: selectedPaperId,
-        amount,
-        paymentDate,
-        note
+        amount: form.get('amount'),
+        paymentDate: form.get('paymentDate'),
+        note: form.get('note')
       })
 
       event.currentTarget.reset()
@@ -1183,10 +960,12 @@ function CustomerPayments({ customer }) {
           </button>
         </form>
 
-        {message && <p className="message">{message}</p>}
+        {message && (
+          <p className="message error">{message}</p>
+        )}
       </section>
 
-      <div className="payments-table">
+      <section className="payments-table">
         {payments.length === 0 ? (
           <div className="empty-card">
             لا توجد دفعات
@@ -1217,7 +996,7 @@ function CustomerPayments({ customer }) {
             </article>
           ))
         )}
-      </div>
+      </section>
     </section>
   )
 }
@@ -1233,8 +1012,8 @@ function CustomerReport({ customer }) {
   async function loadPapers() {
     try {
       const data = await getPapers({
-        includeArchived: false,
-        customerId: customer.id
+        customerId: customer.id,
+        includeArchived: false
       })
 
       setPapers(data)
@@ -1247,13 +1026,14 @@ function CustomerReport({ customer }) {
     setMessage('جارٍ تجهيز التقرير...')
 
     try {
-      const text = await buildCustomerWhatsAppReport(
-        customer,
-        papers
-      )
+      const text =
+        await buildCustomerWhatsAppReport(
+          customer,
+          papers
+        )
 
       openWhatsAppMessage(text)
-      setMessage('تم تجهيز تقرير WhatsApp')
+      setMessage('تم تجهيز التقرير')
     } catch (error) {
       setMessage(error.message)
     }
@@ -1263,7 +1043,7 @@ function CustomerReport({ customer }) {
     (paper) => paper.status === 'open'
   )
 
-  const totalRemaining = openPapers.reduce(
+  const finalBalance = openPapers.reduce(
     (sum, paper) => {
       const balance = calculateBalance(
         paper.total_amount,
@@ -1280,156 +1060,81 @@ function CustomerReport({ customer }) {
       <div className="section-header">
         <div>
           <h2>تقرير {customer.name}</h2>
-          <p>الأوراق المفتوحة فقط</p>
+          <p>الأوراق المفتوحة</p>
         </div>
 
         <button
           className="whatsapp-button"
           onClick={shareReport}
         >
-          إرسال عبر WhatsApp
+          إرسال WhatsApp
         </button>
       </div>
 
-      {message && <p className="message">{message}</p>}
+      {message && (
+        <p className="message">{message}</p>
+      )}
 
       <section className="report-summary-card">
         <span>الرصيد النهائي</span>
-        <strong>{totalRemaining.toFixed(2)}</strong>
+        <strong>{finalBalance.toFixed(2)}</strong>
       </section>
 
-      {openPapers.length === 0 ? (
-        <div className="empty-card">
-          لا توجد أوراق مفتوحة
-        </div>
-      ) : (
-        <div className="papers-list">
-          {openPapers.map((paper) => {
-            const balance = calculateBalance(
-              paper.total_amount,
-              paper.payments
-            )
+      {openPapers.map((paper) => {
+        const balance = calculateBalance(
+          paper.total_amount,
+          paper.payments
+        )
 
-            return (
-              <article
-                className="report-paper-row"
-                key={paper.id}
-              >
-                <span>
-                  التاريخ: {paper.paper_date}
-                </span>
+        return (
+          <article
+            className="report-paper-row"
+            key={paper.id}
+          >
+            <span>
+              التاريخ: {paper.paper_date}
+            </span>
 
-                <span>
-                  القيمة:{' '}
-                  {paper.total_amount === null
-                    ? 'غير محسوبة'
-                    : paper.total_amount}
-                </span>
+            <span>
+              القيمة:{' '}
+              {paper.total_amount === null
+                ? 'غير محسوبة'
+                : paper.total_amount}
+            </span>
 
-                <span>
-                  الدفعات:{' '}
-                  {getPaymentsTotal(paper).toFixed(2)}
-                </span>
+            <span>
+              الدفعات:{' '}
+              {getPaymentsTotal(paper).toFixed(2)}
+            </span>
 
-                <strong>
-                  الرصيد:{' '}
-                  {balance === null
-                    ? 'غير محسوب'
-                    : balance.toFixed(2)}
-                </strong>
-              </article>
-            )
-          })}
-        </div>
-      )}
+            <strong>
+              الرصيد:{' '}
+              {balance === null
+                ? 'غير محسوب'
+                : balance.toFixed(2)}
+            </strong>
+          </article>
+        )
+      })}
     </section>
   )
 }
 
-function CustomerActivity({ customer }) {
-  const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    loadActivity()
-  }, [customer.id])
-
-  async function loadActivity() {
-    const { data } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .order('created_at', {
-        ascending: false
-      })
-      .limit(100)
-
-    setLogs(
-      (data || []).filter(
-        (log) =>
-          log.entity_id === customer.id
-      )
-    )
-
-    setLoading(false)
-  }
-
-  return (
-    <section className="customer-section">
-      <div className="section-header">
-        <div>
-          <h2>نشاط {customer.name}</h2>
-          <p>آخر العمليات المسجلة</p>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="empty-card">
-          جارٍ تحميل النشاط...
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="empty-card">
-          لا يوجد نشاط مباشر لهذا الزبون
-        </div>
-      ) : (
-        <div className="activity-list">
-          {logs.map((log) => (
-            <article
-              className="activity-row"
-              key={log.id}
-            >
-              <strong>{log.action}</strong>
-
-              <span>
-                {new Date(
-                  log.created_at
-                ).toLocaleString('ar-LB')}
-              </span>
-
-              <small>{log.entity_type}</small>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function PaperDetailsModal({
+function PaperModal({
   paper,
   imageUrl,
-  imageHistory,
   onClose,
-  onChanged
+  onSaved
 }) {
-  const [showPaymentForm, setShowPaymentForm] =
-    useState(false)
-  const [showImageForm, setShowImageForm] =
-    useState(false)
   const [showAmountForm, setShowAmountForm] =
     useState(false)
-  const [showArchiveForm, setShowArchiveForm] =
+  const [showPaymentForm, setShowPaymentForm] =
     useState(false)
-
+  const [amount, setAmount] = useState(
+    paper.total_amount === null
+      ? ''
+      : String(paper.total_amount)
+  )
   const [paymentAmount, setPaymentAmount] =
     useState('')
   const [paymentDate, setPaymentDate] = useState(
@@ -1437,39 +1142,18 @@ function PaperDetailsModal({
   )
   const [paymentNote, setPaymentNote] =
     useState('')
-
-  const [newImageFile, setNewImageFile] =
-    useState(null)
-  const [newImageDescription, setNewImageDescription] =
-    useState('')
-
-  const [newAmount, setNewAmount] =
-    useState(
-      paper.total_amount === null
-        ? ''
-        : String(paper.total_amount)
-    )
-
-  const [archiveReason, setArchiveReason] =
-    useState('')
-
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function saveAmount(event) {
     event.preventDefault()
     setSaving(true)
-    setMessage('جارٍ حفظ قيمة الورقة...')
 
     try {
-      await updatePaperAmount(
-        paper.id,
-        newAmount
-      )
-
+      await updatePaperAmount(paper.id, amount)
+      setMessage('تم حفظ قيمة الورقة')
       setShowAmountForm(false)
-      setMessage('تم حفظ قيمة الورقة وتحديث الرصيد')
-      await onChanged()
+      await onSaved()
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -1479,14 +1163,7 @@ function PaperDetailsModal({
 
   async function savePayment(event) {
     event.preventDefault()
-
-    if (!paymentAmount || Number(paymentAmount) <= 0) {
-      setMessage('أدخل قيمة دفعة أكبر من صفر')
-      return
-    }
-
     setSaving(true)
-    setMessage('جارٍ حفظ الدفعة...')
 
     try {
       await createPayment({
@@ -1496,96 +1173,17 @@ function PaperDetailsModal({
         note: paymentNote
       })
 
+      setMessage('تمت إضافة الدفعة')
       setPaymentAmount('')
       setPaymentNote('')
       setShowPaymentForm(false)
-      setMessage('تمت إضافة الدفعة')
-      await onChanged()
+      await onSaved()
     } catch (error) {
       setMessage(error.message)
     } finally {
       setSaving(false)
     }
   }
-
-  async function replaceImage(event) {
-    event.preventDefault()
-
-    if (!newImageFile) {
-      setMessage('اختر الصورة الجديدة')
-      return
-    }
-
-    setSaving(true)
-    setMessage('جارٍ رفع الصورة الجديدة...')
-
-    try {
-      const path = await uploadPaperImage(
-        newImageFile,
-        paper.id
-      )
-
-      await savePaperImageHistory({
-        paperId: paper.id,
-        imagePath: path,
-        description: newImageDescription
-      })
-
-      await updatePaperImagePath(
-        paper.id,
-        path
-      )
-
-      setMessage('تم استبدال الصورة')
-      setShowImageForm(false)
-      await onChanged()
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function changeStatus(action) {
-    setSaving(true)
-
-    try {
-      if (action === 'close') {
-        await closePaper(paper.id)
-      }
-
-      if (action === 'reopen') {
-        await reopenPaper(paper.id)
-      }
-
-      setMessage('تم تحديث حالة الورقة')
-      await onChanged()
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function archive() {
-    setSaving(true)
-
-    try {
-      await archivePaper(
-        paper.id,
-        archiveReason
-      )
-
-      setMessage('تمت أرشفة الورقة')
-      await onChanged()
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const paymentsTotal = getPaymentsTotal(paper)
 
   const balance = calculateBalance(
     paper.total_amount,
@@ -1622,7 +1220,8 @@ function PaperDetailsModal({
         </p>
 
         <p>
-          الدفعات: {paymentsTotal.toFixed(2)}
+          الدفعات:{' '}
+          {getPaymentsTotal(paper).toFixed(2)}
         </p>
 
         <p>
@@ -1632,24 +1231,11 @@ function PaperDetailsModal({
             : balance.toFixed(2)}
         </p>
 
-        <p>
-          الحالة: {getStatusText(paper.status)}
-        </p>
-
-        {paper.note && (
-          <p>الملاحظة: {paper.note}</p>
-        )}
-
         <button
           className="amount-button"
-          onClick={() => {
-            setNewAmount(
-              paper.total_amount === null
-                ? ''
-                : String(paper.total_amount)
-            )
+          onClick={() =>
             setShowAmountForm(!showAmountForm)
-          }}
+          }
         >
           {paper.total_amount === null
             ? 'إضافة قيمة الورقة'
@@ -1661,286 +1247,82 @@ function PaperDetailsModal({
             className="amount-form"
             onSubmit={saveAmount}
           >
-            <h3>قيمة الورقة</h3>
-
             <label>
-              القيمة
+              قيمة الورقة
               <input
                 type="number"
                 step="0.01"
-                value={newAmount}
+                value={amount}
                 onChange={(event) =>
-                  setNewAmount(event.target.value)
+                  setAmount(event.target.value)
                 }
                 required
               />
             </label>
 
-            <div className="form-actions">
-              <button
-                type="submit"
-                disabled={saving}
-              >
-                {saving
-                  ? 'جارٍ الحفظ...'
-                  : 'حفظ القيمة'}
-              </button>
-
-              <button
-                type="button"
-                className="cancel-button"
-                onClick={() =>
-                  setShowAmountForm(false)
-                }
-              >
-                إلغاء
-              </button>
-            </div>
+            <button type="submit" disabled={saving}>
+              حفظ القيمة
+            </button>
           </form>
         )}
 
-        <div className="status-actions">
-          {paper.status === 'open' && (
-            <button
-              className="close-paper-button"
-              onClick={() =>
-                changeStatus('close')
-              }
-              disabled={saving}
-            >
-              إغلاق الورقة
-            </button>
-          )}
+        <button
+          className="payment-button"
+          onClick={() =>
+            setShowPaymentForm(!showPaymentForm)
+          }
+        >
+          {showPaymentForm
+            ? 'إلغاء'
+            : 'إضافة دفعة'}
+        </button>
 
-          {paper.status === 'closed' && (
-            <button
-              className="reopen-paper-button"
-              onClick={() =>
-                changeStatus('reopen')
-              }
-              disabled={saving}
-            >
-              إعادة فتح الورقة
-            </button>
-          )}
-
-          {paper.status !== 'archived' && (
-            <button
-              className="archive-button"
-              onClick={() =>
-                setShowArchiveForm(!showArchiveForm)
-              }
-              disabled={saving}
-            >
-              أرشفة الورقة
-            </button>
-          )}
-        </div>
-
-        {showArchiveForm && (
-          <section className="archive-form">
+        {showPaymentForm && (
+          <form
+            className="payment-form"
+            onSubmit={savePayment}
+          >
             <label>
-              سبب الأرشفة
-              <textarea
-                value={archiveReason}
+              قيمة الدفعة
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={paymentAmount}
                 onChange={(event) =>
-                  setArchiveReason(event.target.value)
+                  setPaymentAmount(event.target.value)
                 }
-                rows="3"
+                required
               />
             </label>
 
-            <button
-              className="archive-button"
-              onClick={archive}
-              disabled={saving}
-            >
-              تأكيد الأرشفة
+            <label>
+              تاريخ الدفعة
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(event) =>
+                  setPaymentDate(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ملاحظة
+              <textarea
+                value={paymentNote}
+                onChange={(event) =>
+                  setPaymentNote(event.target.value)
+                }
+                rows="2"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving ? 'جارٍ الحفظ...' : 'حفظ الدفعة'}
             </button>
-          </section>
-        )}
-
-        {paper.status !== 'archived' && (
-          <>
-            <button
-              className="payment-button"
-              onClick={() =>
-                setShowPaymentForm(!showPaymentForm)
-              }
-            >
-              {showPaymentForm
-                ? 'إلغاء إضافة دفعة'
-                : 'إضافة دفعة'}
-            </button>
-
-            {showPaymentForm && (
-              <form
-                className="payment-form"
-                onSubmit={savePayment}
-              >
-                <label>
-                  قيمة الدفعة
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={paymentAmount}
-                    onChange={(event) =>
-                      setPaymentAmount(
-                        event.target.value
-                      )
-                    }
-                    required
-                  />
-                </label>
-
-                <label>
-                  تاريخ الدفعة
-                  <input
-                    type="date"
-                    value={paymentDate}
-                    onChange={(event) =>
-                      setPaymentDate(
-                        event.target.value
-                      )
-                    }
-                    required
-                  />
-                </label>
-
-                <label>
-                  ملاحظة
-                  <textarea
-                    value={paymentNote}
-                    onChange={(event) =>
-                      setPaymentNote(event.target.value)
-                    }
-                    rows="2"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                >
-                  {saving
-                    ? 'جارٍ الحفظ...'
-                    : 'حفظ الدفعة'}
-                </button>
-              </form>
-            )}
-
-            <button
-              className="image-button"
-              onClick={() =>
-                setShowImageForm(!showImageForm)
-              }
-            >
-              {showImageForm
-                ? 'إلغاء تغيير الصورة'
-                : 'استبدال الصورة'}
-            </button>
-
-            {showImageForm && (
-              <form
-                className="image-form"
-                onSubmit={replaceImage}
-              >
-                <label>
-                  الصورة الجديدة
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(event) =>
-                      setNewImageFile(
-                        event.target.files?.[0] || null
-                      )
-                    }
-                    required
-                  />
-                </label>
-
-                <label>
-                  وصف الصورة
-                  <textarea
-                    value={newImageDescription}
-                    onChange={(event) =>
-                      setNewImageDescription(
-                        event.target.value
-                      )
-                    }
-                    rows="2"
-                    placeholder="مثال: تمت إضافة أسعار جديدة"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                >
-                  {saving
-                    ? 'جارٍ الرفع...'
-                    : 'حفظ الصورة الجديدة'}
-                </button>
-              </form>
-            )}
-          </>
-        )}
-
-        <h3>الدفعات</h3>
-
-        {paper.payments?.filter(
-          (payment) => !payment.is_archived
-        ).length ? (
-          <ul className="payments-list">
-            {paper.payments
-              .filter(
-                (payment) => !payment.is_archived
-              )
-              .map((payment) => (
-                <li key={payment.id}>
-                  <div>
-                    <span>
-                      {payment.payment_date} —{' '}
-                      {Number(payment.amount).toFixed(2)}
-                    </span>
-
-                    {payment.note && (
-                      <small>{payment.note}</small>
-                    )}
-                  </div>
-                </li>
-              ))}
-          </ul>
-        ) : (
-          <p>لا توجد دفعات</p>
-        )}
-
-        <h3>سجل الصور</h3>
-
-        {imageHistory.length === 0 ? (
-          <p>لا يوجد سجل صور</p>
-        ) : (
-          <ul className="image-history-list">
-            {imageHistory.map((image) => (
-              <li key={image.id}>
-                <div>
-                  <span>
-                    {new Date(
-                      image.created_at
-                    ).toLocaleString('ar-LB')}
-                  </span>
-
-                  <small>
-                    {image.description ||
-                      image.note ||
-                      'صورة بدون وصف'}
-                  </small>
-                </div>
-              </li>
-            ))}
-          </ul>
+          </form>
         )}
 
         {message && (
