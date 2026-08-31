@@ -5,18 +5,38 @@ import {
   getCustomers,
   updateCustomer
 } from './lib/customers'
-import { createPaper } from './lib/papers'
-import { uploadPaperImage } from './lib/storage'
+import {
+  calculateBalance,
+  createPaper,
+  getPapers
+} from './lib/papers'
+import {
+  createPaperImageUrl,
+  uploadPaperImage
+} from './lib/storage'
+import {
+  createPayment,
+  updatePayment
+} from './lib/payments'
 
 function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+
   const [customers, setCustomers] = useState([])
+  const [papers, setPapers] = useState([])
   const [search, setSearch] = useState('')
 
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showPaperForm, setShowPaperForm] = useState(false)
+
   const [editingCustomer, setEditingCustomer] = useState(null)
+
+  const [selectedPaper, setSelectedPaper] = useState(null)
+  const [selectedPaperImage, setSelectedPaperImage] = useState(null)
+
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [editingPayment, setEditingPayment] = useState(null)
 
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -30,8 +50,15 @@ function App() {
   const [paperNote, setPaperNote] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
 
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [paymentNote, setPaymentNote] = useState('')
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,16 +67,21 @@ function App() {
     let mounted = true
 
     async function initialize() {
-      const { data } = await supabase.auth.getSession()
+      const { data, error } = await supabase.auth.getSession()
 
       if (!mounted) return
+
+      if (error) {
+        setMessage(`فشل تحميل الجلسة: ${error.message}`)
+      }
 
       setSession(data.session)
       setLoading(false)
 
       if (data.session) {
         await loadProfile(data.session.user.id)
-        await loadCustomers()
+        await loadCustomers('')
+        await loadPapers()
       }
     }
 
@@ -57,17 +89,21 @@ function App() {
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession)
+    } = supabase.auth.onAuthStateChange(
+      async (_event, newSession) => {
+        setSession(newSession)
 
-      if (newSession) {
-        await loadProfile(newSession.user.id)
-        await loadCustomers()
-      } else {
-        setProfile(null)
-        setCustomers([])
+        if (newSession) {
+          await loadProfile(newSession.user.id)
+          await loadCustomers('')
+          await loadPapers()
+        } else {
+          setProfile(null)
+          setCustomers([])
+          setPapers([])
+        }
       }
-    })
+    )
 
     return () => {
       mounted = false
@@ -76,18 +112,18 @@ function App() {
   }, [])
 
   async function loadProfile(userId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('display_name')
       .eq('id', userId)
       .single()
 
-    if (data) {
+    if (!error) {
       setProfile(data)
     }
   }
 
-  async function loadCustomers(searchText = search) {
+  async function loadCustomers(searchText = '') {
     const { data, error } = await getCustomers(searchText)
 
     if (error) {
@@ -96,6 +132,52 @@ function App() {
     }
 
     setCustomers(data || [])
+  }
+
+  async function loadPapers() {
+    try {
+      const data = await getPapers()
+      setPapers(data)
+    } catch (error) {
+      setMessage(`فشل تحميل الأوراق: ${error.message}`)
+    }
+  }
+
+  async function refreshSelectedPaper(paperId) {
+    const updatedPapers = await getPapers()
+    setPapers(updatedPapers)
+
+    const updatedPaper = updatedPapers.find(
+      (paper) => paper.id === paperId
+    )
+
+    if (updatedPaper) {
+      setSelectedPaper(updatedPaper)
+
+      const imageUrl = await createPaperImageUrl(
+        updatedPaper.image_path
+      )
+
+      setSelectedPaperImage(imageUrl)
+    }
+  }
+
+  async function openPaperDetails(paper) {
+    try {
+      setMessage('جارٍ تحميل صورة الورقة...')
+
+      const imageUrl = await createPaperImageUrl(
+        paper.image_path
+      )
+
+      setSelectedPaper(paper)
+      setSelectedPaperImage(imageUrl)
+      setShowPaymentForm(false)
+      setEditingPayment(null)
+      setMessage('')
+    } catch (error) {
+      setMessage(`فشل تحميل الصورة: ${error.message}`)
+    }
   }
 
   async function signIn(event) {
@@ -117,9 +199,11 @@ function App() {
 
   async function signOut() {
     await supabase.auth.signOut()
+
     setSession(null)
     setProfile(null)
     setCustomers([])
+    setPapers([])
   }
 
   function resetCustomerForm() {
@@ -137,9 +221,17 @@ function App() {
     setTotalAmount('')
   }
 
+  function resetPaymentForm() {
+    setPaymentAmount('')
+    setPaymentDate(new Date().toISOString().slice(0, 10))
+    setPaymentNote('')
+    setEditingPayment(null)
+  }
+
   function openAddCustomer() {
     resetCustomerForm()
     setShowCustomerForm(true)
+    setShowPaperForm(false)
     setMessage('')
   }
 
@@ -149,12 +241,29 @@ function App() {
     setCustomerPhone(customer.phone || '')
     setCustomerNotes(customer.notes || '')
     setShowCustomerForm(true)
+    setShowPaperForm(false)
     setMessage('')
   }
 
   function openAddPaper() {
     resetPaperForm()
     setShowPaperForm(true)
+    setShowCustomerForm(false)
+    setMessage('')
+  }
+
+  function openAddPayment() {
+    resetPaymentForm()
+    setShowPaymentForm(true)
+    setMessage('')
+  }
+
+  function openEditPayment(payment) {
+    setEditingPayment(payment)
+    setPaymentAmount(payment.amount || '')
+    setPaymentDate(payment.payment_date || '')
+    setPaymentNote(payment.note || '')
+    setShowPaymentForm(true)
     setMessage('')
   }
 
@@ -184,7 +293,7 @@ function App() {
 
       resetCustomerForm()
       setShowCustomerForm(false)
-      await loadCustomers()
+      await loadCustomers(search)
     } catch (error) {
       setMessage(error.message || 'حدث خطأ أثناء حفظ الزبون')
     } finally {
@@ -210,6 +319,7 @@ function App() {
 
     try {
       const temporaryPaperId = crypto.randomUUID()
+
       const imagePath = await uploadPaperImage(
         paperFile,
         temporaryPaperId
@@ -223,6 +333,8 @@ function App() {
         totalAmount
       })
 
+      await loadPapers()
+
       resetPaperForm()
       setShowPaperForm(false)
       setMessage('تمت إضافة الورقة بنجاح')
@@ -231,6 +343,72 @@ function App() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function savePayment(event) {
+    event.preventDefault()
+
+    if (!selectedPaper) {
+      setMessage('لم يتم اختيار ورقة')
+      return
+    }
+
+    if (!paymentAmount || Number(paymentAmount) <= 0) {
+      setMessage('أدخل قيمة دفعة أكبر من صفر')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ حفظ الدفعة...')
+
+    try {
+      const wasEditing = Boolean(editingPayment)
+
+      if (wasEditing) {
+        await updatePayment(editingPayment.id, {
+          amount: paymentAmount,
+          paymentDate,
+          note: paymentNote
+        })
+      } else {
+        await createPayment({
+          paperId: selectedPaper.id,
+          amount: paymentAmount,
+          paymentDate,
+          note: paymentNote
+        })
+      }
+
+      await refreshSelectedPaper(selectedPaper.id)
+
+      resetPaymentForm()
+      setShowPaymentForm(false)
+      setMessage(
+        wasEditing
+          ? 'تم تعديل الدفعة بنجاح'
+          : 'تمت إضافة الدفعة بنجاح'
+      )
+    } catch (error) {
+      setMessage(error.message || 'حدث خطأ أثناء حفظ الدفعة')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function getPaymentsTotal(paper) {
+    return (paper.payments || [])
+      .filter((payment) => !payment.is_archived)
+      .reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0
+      )
+  }
+
+  function getStatusText(status) {
+    if (status === 'open') return 'مفتوحة'
+    if (status === 'closed') return 'مغلقة'
+    if (status === 'archived') return 'مؤرشفة'
+    return status
   }
 
   if (loading) {
@@ -246,6 +424,7 @@ function App() {
       <main dir="rtl" className="auth-page">
         <section className="auth-card">
           <h1>نظام أوراق الزبائن</h1>
+          <p>تسجيل الدخول</p>
 
           <form onSubmit={signIn}>
             <label>
@@ -253,7 +432,9 @@ function App() {
               <input
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 required
               />
             </label>
@@ -263,17 +444,21 @@ function App() {
               <input
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
                 required
               />
             </label>
 
             <button type="submit" disabled={loading}>
-              تسجيل الدخول
+              {loading ? 'جارٍ الدخول...' : 'تسجيل الدخول'}
             </button>
           </form>
 
-          {message && <p className="message error">{message}</p>}
+          {message && (
+            <p className="message error">{message}</p>
+          )}
         </section>
       </main>
     )
@@ -289,15 +474,20 @@ function App() {
           </p>
         </div>
 
-        <button onClick={signOut} className="secondary-button">
+        <button
+          onClick={signOut}
+          className="secondary-button"
+        >
           تسجيل الخروج
         </button>
       </header>
 
       <section className="section-header">
         <div>
-          <h2>الزبائن</h2>
-          <p>عدد الزبائن: {customers.length}</p>
+          <h2>الزبائن والأوراق</h2>
+          <p>
+            الزبائن: {customers.length} | الأوراق: {papers.length}
+          </p>
         </div>
 
         <div className="header-actions">
@@ -327,7 +517,9 @@ function App() {
       {showCustomerForm && (
         <section className="form-card">
           <h2>
-            {editingCustomer ? 'تعديل الزبون' : 'إضافة زبون جديد'}
+            {editingCustomer
+              ? 'تعديل الزبون'
+              : 'إضافة زبون جديد'}
           </h2>
 
           <form onSubmit={saveCustomer}>
@@ -387,87 +579,102 @@ function App() {
         <section className="form-card">
           <h2>إضافة ورقة جديدة</h2>
 
-          <form onSubmit={savePaper}>
-            <label>
-              الزبون
-              <select
-                value={selectedCustomerId}
-                onChange={(event) =>
-                  setSelectedCustomerId(event.target.value)
-                }
-                required
-              >
-                <option value="">اختر الزبون</option>
+          {customers.length === 0 ? (
+            <p className="message error">
+              أضف زبونًا أولًا قبل إنشاء الورقة.
+            </p>
+          ) : (
+            <form onSubmit={savePaper}>
+              <label>
+                الزبون
+                <select
+                  value={selectedCustomerId}
+                  onChange={(event) =>
+                    setSelectedCustomerId(event.target.value)
+                  }
+                  required
+                >
+                  <option value="">اختر الزبون</option>
 
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                  {customers.map((customer) => (
+                    <option
+                      key={customer.id}
+                      value={customer.id}
+                    >
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              صورة الورقة
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(event) =>
-                  setPaperFile(event.target.files?.[0] || null)
-                }
-                required
-              />
-            </label>
+              <label>
+                صورة الورقة
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) =>
+                    setPaperFile(
+                      event.target.files?.[0] || null
+                    )
+                  }
+                  required
+                />
+              </label>
 
-            <label>
-              تاريخ الورقة
-              <input
-                type="date"
-                value={paperDate}
-                onChange={(event) => setPaperDate(event.target.value)}
-                required
-              />
-            </label>
+              <label>
+                تاريخ الورقة
+                <input
+                  type="date"
+                  value={paperDate}
+                  onChange={(event) =>
+                    setPaperDate(event.target.value)
+                  }
+                  required
+                />
+              </label>
 
-            <label>
-              القيمة، اختيارية
-              <input
-                type="number"
-                step="0.01"
-                value={totalAmount}
-                onChange={(event) =>
-                  setTotalAmount(event.target.value)
-                }
-              />
-            </label>
+              <label>
+                القيمة، اختيارية
+                <input
+                  type="number"
+                  step="0.01"
+                  value={totalAmount}
+                  onChange={(event) =>
+                    setTotalAmount(event.target.value)
+                  }
+                />
+              </label>
 
-            <label>
-              ملاحظة، اختيارية
-              <textarea
-                value={paperNote}
-                onChange={(event) => setPaperNote(event.target.value)}
-                rows="3"
-              />
-            </label>
+              <label>
+                ملاحظة، اختيارية
+                <textarea
+                  value={paperNote}
+                  onChange={(event) =>
+                    setPaperNote(event.target.value)
+                  }
+                  rows="3"
+                />
+              </label>
 
-            <div className="form-actions">
-              <button type="submit" disabled={saving}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ الورقة'}
-              </button>
+              <div className="form-actions">
+                <button type="submit" disabled={saving}>
+                  {saving ? 'جارٍ الحفظ...' : 'حفظ الورقة'}
+                </button>
 
-              <button
-                type="button"
-                className="cancel-button"
-                onClick={() => {
-                  resetPaperForm()
-                  setShowPaperForm(false)
-                }}
-              >
-                إلغاء
-              </button>
-            </div>
-          </form>
+                <button
+                  type="button"
+                  className="cancel-button"
+                  onClick={() => {
+                    resetPaperForm()
+                    setShowPaperForm(false)
+                  }}
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          )}
         </section>
       )}
 
@@ -480,7 +687,10 @@ function App() {
           </div>
         ) : (
           customers.map((customer) => (
-            <article className="customer-card" key={customer.id}>
+            <article
+              className="customer-card"
+              key={customer.id}
+            >
               <div>
                 <h3>{customer.name}</h3>
 
@@ -503,6 +713,254 @@ function App() {
           ))
         )}
       </section>
+
+      <section className="papers-section">
+        <div className="section-header">
+          <div>
+            <h2>آخر الأوراق</h2>
+            <p>عدد الأوراق: {papers.length}</p>
+          </div>
+        </div>
+
+        {papers.length === 0 ? (
+          <div className="empty-card">
+            لا توجد أوراق حتى الآن
+          </div>
+        ) : (
+          <div className="papers-list">
+            {papers.map((paper) => {
+              const balance = calculateBalance(
+                paper.total_amount,
+                paper.payments
+              )
+
+              return (
+                <article
+                  className="paper-card"
+                  key={paper.id}
+                >
+                  <div>
+                    <h3>
+                      {paper.customers?.name ||
+                        'زبون غير معروف'}
+                    </h3>
+
+                    <p>التاريخ: {paper.paper_date}</p>
+
+                    <p>
+                      القيمة:{' '}
+                      {paper.total_amount === null
+                        ? 'غير محسوبة'
+                        : paper.total_amount}
+                    </p>
+
+                    <p>
+                      مجموع الدفعات:{' '}
+                      {getPaymentsTotal(paper).toFixed(2)}
+                    </p>
+
+                    <p>
+                      الرصيد:{' '}
+                      {balance === null
+                        ? 'غير محسوب'
+                        : balance.toFixed(2)}
+                    </p>
+
+                    <p>
+                      الحالة: {getStatusText(paper.status)}
+                    </p>
+                  </div>
+
+                  <button
+                    className="details-button"
+                    onClick={() => openPaperDetails(paper)}
+                  >
+                    التفاصيل
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {selectedPaper && (
+        <div className="modal-backdrop">
+          <section className="paper-details-modal">
+            <button
+              className="close-button"
+              onClick={() => {
+                setSelectedPaper(null)
+                setSelectedPaperImage(null)
+                setShowPaymentForm(false)
+                resetPaymentForm()
+              }}
+            >
+              إغلاق
+            </button>
+
+            <h2>تفاصيل الورقة</h2>
+
+            {selectedPaperImage && (
+              <img
+                className="paper-image"
+                src={selectedPaperImage}
+                alt="صورة الورقة"
+              />
+            )}
+
+            <h3>
+              {selectedPaper.customers?.name ||
+                'زبون غير معروف'}
+            </h3>
+
+            <p>التاريخ: {selectedPaper.paper_date}</p>
+
+            <p>
+              القيمة:{' '}
+              {selectedPaper.total_amount === null
+                ? 'غير محسوبة'
+                : selectedPaper.total_amount}
+            </p>
+
+            <p>
+              مجموع الدفعات:{' '}
+              {getPaymentsTotal(selectedPaper).toFixed(2)}
+            </p>
+
+            <p>
+              الرصيد:{' '}
+              {calculateBalance(
+                selectedPaper.total_amount,
+                selectedPaper.payments
+              ) === null
+                ? 'غير محسوب'
+                : calculateBalance(
+                    selectedPaper.total_amount,
+                    selectedPaper.payments
+                  ).toFixed(2)}
+            </p>
+
+            {selectedPaper.note && (
+              <p>الملاحظة: {selectedPaper.note}</p>
+            )}
+
+            <button
+              className="payment-button"
+              onClick={openAddPayment}
+            >
+              إضافة دفعة
+            </button>
+
+            {showPaymentForm && (
+              <form
+                className="payment-form"
+                onSubmit={savePayment}
+              >
+                <h3>
+                  {editingPayment
+                    ? 'تعديل الدفعة'
+                    : 'إضافة دفعة'}
+                </h3>
+
+                <label>
+                  قيمة الدفعة
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(event) =>
+                      setPaymentAmount(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  تاريخ الدفعة
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) =>
+                      setPaymentDate(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  ملاحظة الدفعة
+                  <textarea
+                    value={paymentNote}
+                    onChange={(event) =>
+                      setPaymentNote(event.target.value)
+                    }
+                    rows="2"
+                  />
+                </label>
+
+                <div className="form-actions">
+                  <button type="submit" disabled={saving}>
+                    {saving
+                      ? 'جارٍ الحفظ...'
+                      : 'حفظ الدفعة'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => {
+                      resetPaymentForm()
+                      setShowPaymentForm(false)
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <h3>الدفعات</h3>
+
+            {selectedPaper.payments?.filter(
+              (payment) => !payment.is_archived
+            ).length ? (
+              <ul className="payments-list">
+                {selectedPaper.payments
+                  .filter(
+                    (payment) => !payment.is_archived
+                  )
+                  .map((payment) => (
+                    <li key={payment.id}>
+                      <div>
+                        <span>
+                          {payment.payment_date} —{' '}
+                          {Number(payment.amount).toFixed(2)}
+                        </span>
+
+                        {payment.note && (
+                          <small>{payment.note}</small>
+                        )}
+                      </div>
+
+                      <button
+                        className="small-button"
+                        onClick={() =>
+                          openEditPayment(payment)
+                        }
+                      >
+                        تعديل
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p>لا توجد دفعات</p>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   )
 }
