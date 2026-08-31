@@ -10,8 +10,7 @@ import {
 import { supabase } from './lib/supabase'
 import {
   createCustomer,
-  getCustomers,
-  updateCustomer
+  getCustomers
 } from './lib/customers'
 import {
   archivePaper,
@@ -20,6 +19,7 @@ import {
   createPaper,
   getPapers,
   reopenPaper,
+  updatePaperAmount,
   updatePaperImagePath
 } from './lib/papers'
 import {
@@ -29,10 +29,8 @@ import {
   uploadPaperImage
 } from './lib/storage'
 import {
-  createPayment,
-  updatePayment
+  createPayment
 } from './lib/payments'
-import { getDashboardData } from './lib/reports'
 import {
   buildCustomerWhatsAppReport,
   openWhatsAppMessage
@@ -47,7 +45,8 @@ function App() {
     let mounted = true
 
     async function loadSession() {
-      const { data } = await supabase.auth.getSession()
+      const { data } =
+        await supabase.auth.getSession()
 
       if (!mounted) return
 
@@ -296,7 +295,6 @@ function CustomerSelectPage({
         notes
       })
 
-      setMessage('تمت إضافة الزبون')
       setName('')
       setPhone('')
       setNotes('')
@@ -305,7 +303,7 @@ function CustomerSelectPage({
       navigate(`/customer/${customer.id}`)
     } catch (error) {
       setMessage(
-        error.message || 'حدث خطأ أثناء إضافة الزبون'
+        error.message || 'حدث خطأ أثناء الإضافة'
       )
     } finally {
       setSaving(false)
@@ -315,9 +313,7 @@ function CustomerSelectPage({
   const visibleCustomers = useMemo(() => {
     const text = search.trim().toLowerCase()
 
-    if (!text) {
-      return customers
-    }
+    if (!text) return customers
 
     return customers.filter((customer) =>
       customer.name.toLowerCase().includes(text)
@@ -335,17 +331,34 @@ function CustomerSelectPage({
 
       <section className="customer-start-card">
         <h2>ابدأ باختيار الزبون</h2>
+
         <p>
-          بعد اختيار الزبون ستظهر كل أوراقه ودفعاته وتقاريره.
+          اختر الزبون أولًا للوصول إلى كل أوراقه ودفعاته
+          وتقاريره.
         </p>
 
-        <button
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm
-            ? 'إلغاء إضافة زبون'
-            : 'إضافة زبون جديد'}
-        </button>
+        <div className="start-actions">
+          <button
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm
+              ? 'إلغاء إضافة زبون'
+              : 'إضافة زبون جديد'}
+          </button>
+
+          {visibleCustomers.length > 0 && (
+            <button
+              className="quick-paper-button"
+              onClick={() =>
+                navigate(
+                  `/customer/${visibleCustomers[0].id}/papers`
+                )
+              }
+            >
+              إضافة ورقة سريعة
+            </button>
+          )}
+        </div>
       </section>
 
       {showForm && (
@@ -397,7 +410,7 @@ function CustomerSelectPage({
           <div>
             <h2>الزبائن</h2>
             <p>
-              عدد الزبائن: {visibleCustomers.length}
+              عدد النتائج: {visibleCustomers.length}
             </p>
           </div>
         </div>
@@ -423,24 +436,41 @@ function CustomerSelectPage({
           </div>
         ) : visibleCustomers.length === 0 ? (
           <div className="empty-card">
-            لا يوجد زبائن مطابقون للبحث
+            لا يوجد زبائن مطابقون
           </div>
         ) : (
           <div className="customer-picker-list">
             {visibleCustomers.map((customer) => (
-              <button
-                className="customer-picker-item"
+              <article
+                className="customer-picker-card"
                 key={customer.id}
-                onClick={() =>
-                  navigate(`/customer/${customer.id}`)
-                }
               >
-                <span>{customer.name}</span>
+                <button
+                  className="customer-picker-item"
+                  onClick={() =>
+                    navigate(
+                      `/customer/${customer.id}`
+                    )
+                  }
+                >
+                  <span>{customer.name}</span>
 
-                {customer.phone && (
-                  <small>{customer.phone}</small>
-                )}
-              </button>
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
+                </button>
+
+                <button
+                  className="quick-paper-button"
+                  onClick={() =>
+                    navigate(
+                      `/customer/${customer.id}/papers`
+                    )
+                  }
+                >
+                  إضافة ورقة
+                </button>
+              </article>
             ))}
           </div>
         )}
@@ -500,7 +530,7 @@ function CustomerWorkspace({
         />
 
         <div className="empty-card">
-          لم يتم العثور على هذا الزبون.
+          لم يتم العثور على الزبون.
         </div>
       </main>
     )
@@ -539,19 +569,27 @@ function CustomerWorkspace({
           ملخص
         </Link>
 
-        <Link to={`/customer/${customerId}/papers`}>
+        <Link
+          to={`/customer/${customerId}/papers`}
+        >
           الأوراق
         </Link>
 
-        <Link to={`/customer/${customerId}/payments`}>
+        <Link
+          to={`/customer/${customerId}/payments`}
+        >
           الدفعات
         </Link>
 
-        <Link to={`/customer/${customerId}/report`}>
+        <Link
+          to={`/customer/${customerId}/report`}
+        >
           التقرير
         </Link>
 
-        <Link to={`/customer/${customerId}/activity`}>
+        <Link
+          to={`/customer/${customerId}/activity`}
+        >
           النشاط
         </Link>
       </nav>
@@ -562,7 +600,6 @@ function CustomerWorkspace({
           element={
             <CustomerSummary
               customer={customer}
-              session={session}
             />
           }
         />
@@ -572,7 +609,6 @@ function CustomerWorkspace({
           element={
             <CustomerPapers
               customer={customer}
-              session={session}
             />
           }
         />
@@ -582,7 +618,6 @@ function CustomerWorkspace({
           element={
             <CustomerPayments
               customer={customer}
-              session={session}
             />
           }
         />
@@ -592,7 +627,6 @@ function CustomerWorkspace({
           element={
             <CustomerReport
               customer={customer}
-              session={session}
             />
           }
         />
@@ -610,10 +644,7 @@ function CustomerWorkspace({
   )
 }
 
-function CustomerSummary({
-  customer,
-  session
-}) {
+function CustomerSummary({ customer }) {
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -638,45 +669,43 @@ function CustomerSummary({
     (paper) => paper.status === 'open'
   )
 
-  const calculatedPapers = openPapers.filter(
-    (paper) =>
-      paper.total_amount !== null &&
-      paper.total_amount !== undefined
-  )
-
-  const totalRemaining = calculatedPapers.reduce(
-    (sum, paper) =>
-      sum +
-      calculateBalance(
+  const totalRemaining = openPapers.reduce(
+    (sum, paper) => {
+      const balance = calculateBalance(
         paper.total_amount,
         paper.payments
-      ),
+      )
+
+      return sum + (balance === null ? 0 : balance)
+    },
     0
   )
 
-  const paymentsTotal = papers.reduce(
+  const totalValues = openPapers.reduce(
     (sum, paper) =>
       sum +
-      (paper.payments || [])
-        .filter((payment) => !payment.is_archived)
-        .reduce(
-          (paymentSum, payment) =>
-            paymentSum + Number(payment.amount || 0),
-          0
-        ),
+      (paper.total_amount === null
+        ? 0
+        : Number(paper.total_amount)),
+    0
+  )
+
+  const totalPayments = papers.reduce(
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
     0
   )
 
   if (loading) {
     return (
       <div className="empty-card">
-        جارٍ تحميل ملخص الزبون...
+        جارٍ تحميل الملخص...
       </div>
     )
   }
 
   return (
-    <section className="customer-summary">
+    <section className="customer-section">
       <div className="summary-cards">
         <article className="summary-card">
           <span>كل الأوراق</span>
@@ -689,12 +718,17 @@ function CustomerSummary({
         </article>
 
         <article className="summary-card">
-          <span>إجمالي الدفعات</span>
-          <strong>{paymentsTotal.toFixed(2)}</strong>
+          <span>إجمالي القيم</span>
+          <strong>{totalValues.toFixed(2)}</strong>
         </article>
 
         <article className="summary-card">
-          <span>الرصيد المفتوح</span>
+          <span>إجمالي الدفعات</span>
+          <strong>{totalPayments.toFixed(2)}</strong>
+        </article>
+
+        <article className="summary-card total-summary-card">
+          <span>الرصيد النهائي</span>
           <strong>{totalRemaining.toFixed(2)}</strong>
         </article>
       </div>
@@ -704,31 +738,30 @@ function CustomerSummary({
           className="primary-link"
           to={`/customer/${customer.id}/papers`}
         >
-          فتح أوراق الزبون
+          أوراق الزبون
+        </Link>
+
+        <Link
+          className="secondary-link"
+          to={`/customer/${customer.id}/payments`}
+        >
+          دفعات الزبون
         </Link>
 
         <Link
           className="secondary-link"
           to={`/customer/${customer.id}/report`}
         >
-          فتح التقرير
+          تقرير الزبون
         </Link>
       </div>
     </section>
   )
 }
 
-function CustomerPapers({
-  customer
-}) {
+function CustomerPapers({ customer }) {
   const [papers, setPapers] = useState([])
   const [filter, setFilter] = useState('all')
-  const [selectedPaper, setSelectedPaper] =
-    useState(null)
-  const [selectedPaperImage, setSelectedPaperImage] =
-    useState(null)
-  const [imageHistory, setImageHistory] =
-    useState([])
   const [showAddForm, setShowAddForm] =
     useState(false)
   const [paperFile, setPaperFile] = useState(null)
@@ -740,6 +773,13 @@ function CustomerPapers({
     useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [selectedPaper, setSelectedPaper] =
+    useState(null)
+  const [selectedPaperImage, setSelectedPaperImage] =
+    useState(null)
+  const [imageHistory, setImageHistory] =
+    useState([])
 
   useEffect(() => {
     loadPapers()
@@ -757,11 +797,6 @@ function CustomerPapers({
       setMessage(`فشل تحميل الأوراق: ${error.message}`)
     }
   }
-
-  const visiblePapers = papers.filter((paper) => {
-    if (filter === 'all') return true
-    return paper.status === filter
-  })
 
   async function savePaper(event) {
     event.preventDefault()
@@ -801,7 +836,7 @@ function CustomerPapers({
       await loadPapers()
     } catch (error) {
       setMessage(
-        error.message || 'حدث خطأ أثناء إضافة الورقة'
+        error.message || 'حدث خطأ أثناء الإضافة'
       )
     } finally {
       setSaving(false)
@@ -825,6 +860,11 @@ function CustomerPapers({
       setMessage(`فشل فتح الورقة: ${error.message}`)
     }
   }
+
+  const visiblePapers = papers.filter((paper) => {
+    if (filter === 'all') return true
+    return paper.status === filter
+  })
 
   return (
     <section className="customer-section">
@@ -909,7 +949,7 @@ function CustomerPapers({
             </label>
 
             <label>
-              ملاحظة، اختيارية
+              ملاحظة
               <textarea
                 value={paperNote}
                 onChange={(event) =>
@@ -920,9 +960,7 @@ function CustomerPapers({
             </label>
 
             <button type="submit" disabled={saving}>
-              {saving
-                ? 'جارٍ الحفظ...'
-                : 'حفظ الورقة'}
+              {saving ? 'جارٍ الحفظ...' : 'حفظ الورقة'}
             </button>
           </form>
         </section>
@@ -1009,24 +1047,58 @@ function CustomerPapers({
   )
 }
 
-function CustomerPayments({
-  customer
-}) {
+function CustomerPayments({ customer }) {
   const [papers, setPapers] = useState([])
   const [selectedPaperId, setSelectedPaperId] =
     useState('')
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     loadPapers()
   }, [customer.id])
 
   async function loadPapers() {
-    const data = await getPapers({
-      includeArchived: true,
-      customerId: customer.id
-    })
+    try {
+      const data = await getPapers({
+        includeArchived: true,
+        customerId: customer.id
+      })
 
-    setPapers(data)
+      setPapers(data)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  async function savePayment(event) {
+    event.preventDefault()
+
+    const form = new FormData(event.currentTarget)
+
+    const amount = form.get('amount')
+    const paymentDate = form.get('paymentDate')
+    const note = form.get('note')
+
+    if (!selectedPaperId) {
+      setMessage('اختر الورقة')
+      return
+    }
+
+    try {
+      await createPayment({
+        paperId: selectedPaperId,
+        amount,
+        paymentDate,
+        note
+      })
+
+      event.currentTarget.reset()
+      setSelectedPaperId('')
+      setMessage('تمت إضافة الدفعة')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    }
   }
 
   const payments = papers.flatMap((paper) =>
@@ -1034,37 +1106,9 @@ function CustomerPayments({
       .filter((payment) => !payment.is_archived)
       .map((payment) => ({
         ...payment,
-        paperDate: paper.paper_date,
-        paperId: paper.id
+        paperDate: paper.paper_date
       }))
   )
-
-  const selectedPaper = papers.find(
-    (paper) => paper.id === selectedPaperId
-  )
-
-  async function addPayment(event) {
-    event.preventDefault()
-
-    const form = new FormData(event.currentTarget)
-    const amount = form.get('amount')
-    const paymentDate = form.get('paymentDate')
-    const note = form.get('note')
-
-    if (!selectedPaperId) {
-      return
-    }
-
-    await createPayment({
-      paperId: selectedPaperId,
-      amount,
-      paymentDate,
-      note
-    })
-
-    event.currentTarget.reset()
-    await loadPapers()
-  }
 
   return (
     <section className="customer-section">
@@ -1078,7 +1122,7 @@ function CustomerPayments({
       <section className="form-card">
         <h2>إضافة دفعة</h2>
 
-        <form onSubmit={addPayment}>
+        <form onSubmit={savePayment}>
           <label>
             الورقة
             <select
@@ -1091,7 +1135,9 @@ function CustomerPayments({
               <option value="">اختر الورقة</option>
 
               {papers
-                .filter((paper) => paper.status !== 'archived')
+                .filter(
+                  (paper) => paper.status !== 'archived'
+                )
                 .map((paper) => (
                   <option
                     key={paper.id}
@@ -1136,15 +1182,17 @@ function CustomerPayments({
             حفظ الدفعة
           </button>
         </form>
+
+        {message && <p className="message">{message}</p>}
       </section>
 
-      {payments.length === 0 ? (
-        <div className="empty-card">
-          لا توجد دفعات لهذا الزبون
-        </div>
-      ) : (
-        <div className="payments-table">
-          {payments.map((payment) => (
+      <div className="payments-table">
+        {payments.length === 0 ? (
+          <div className="empty-card">
+            لا توجد دفعات
+          </div>
+        ) : (
+          payments.map((payment) => (
             <article
               className="payment-row"
               key={payment.id}
@@ -1166,27 +1214,15 @@ function CustomerPayments({
                   <small>{payment.note}</small>
                 )}
               </div>
-
-              <span className="payment-status">
-                مسجلة
-              </span>
             </article>
-          ))}
-        </div>
-      )}
-
-      {selectedPaper && (
-        <p className="message">
-          الورقة المحددة: {selectedPaper.paper_date}
-        </p>
-      )}
+          ))
+        )}
+      </div>
     </section>
   )
 }
 
-function CustomerReport({
-  customer
-}) {
+function CustomerReport({ customer }) {
   const [papers, setPapers] = useState([])
   const [message, setMessage] = useState('')
 
@@ -1269,7 +1305,6 @@ function CustomerReport({
       ) : (
         <div className="papers-list">
           {openPapers.map((paper) => {
-            const paymentsTotal = getPaymentsTotal(paper)
             const balance = calculateBalance(
               paper.total_amount,
               paper.payments
@@ -1292,7 +1327,8 @@ function CustomerReport({
                 </span>
 
                 <span>
-                  الدفعات: {paymentsTotal.toFixed(2)}
+                  الدفعات:{' '}
+                  {getPaymentsTotal(paper).toFixed(2)}
                 </span>
 
                 <strong>
@@ -1310,9 +1346,7 @@ function CustomerReport({
   )
 }
 
-function CustomerActivity({
-  customer
-}) {
+function CustomerActivity({ customer }) {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -1321,19 +1355,20 @@ function CustomerActivity({
   }, [customer.id])
 
   async function loadActivity() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('audit_logs')
       .select('*')
-      .or(
-        `entity_id.eq.${customer.id}`
-      )
       .order('created_at', {
         ascending: false
       })
+      .limit(100)
 
-    if (!error) {
-      setLogs(data || [])
-    }
+    setLogs(
+      (data || []).filter(
+        (log) =>
+          log.entity_id === customer.id
+      )
+    )
 
     setLoading(false)
   }
@@ -1343,7 +1378,7 @@ function CustomerActivity({
       <div className="section-header">
         <div>
           <h2>نشاط {customer.name}</h2>
-          <p>سجل العمليات</p>
+          <p>آخر العمليات المسجلة</p>
         </div>
       </div>
 
@@ -1353,7 +1388,7 @@ function CustomerActivity({
         </div>
       ) : logs.length === 0 ? (
         <div className="empty-card">
-          لا يوجد نشاط لهذا الزبون
+          لا يوجد نشاط مباشر لهذا الزبون
         </div>
       ) : (
         <div className="activity-list">
@@ -1370,9 +1405,7 @@ function CustomerActivity({
                 ).toLocaleString('ar-LB')}
               </span>
 
-              <small>
-                {log.entity_type}
-              </small>
+              <small>{log.entity_type}</small>
             </article>
           ))}
         </div>
@@ -1392,6 +1425,8 @@ function PaperDetailsModal({
     useState(false)
   const [showImageForm, setShowImageForm] =
     useState(false)
+  const [showAmountForm, setShowAmountForm] =
+    useState(false)
   const [showArchiveForm, setShowArchiveForm] =
     useState(false)
 
@@ -1407,15 +1442,51 @@ function PaperDetailsModal({
     useState(null)
   const [newImageDescription, setNewImageDescription] =
     useState('')
+
+  const [newAmount, setNewAmount] =
+    useState(
+      paper.total_amount === null
+        ? ''
+        : String(paper.total_amount)
+    )
+
   const [archiveReason, setArchiveReason] =
     useState('')
 
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
-  async function savePayment(event) {
+  async function saveAmount(event) {
     event.preventDefault()
     setSaving(true)
+    setMessage('جارٍ حفظ قيمة الورقة...')
+
+    try {
+      await updatePaperAmount(
+        paper.id,
+        newAmount
+      )
+
+      setShowAmountForm(false)
+      setMessage('تم حفظ قيمة الورقة وتحديث الرصيد')
+      await onChanged()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function savePayment(event) {
+    event.preventDefault()
+
+    if (!paymentAmount || Number(paymentAmount) <= 0) {
+      setMessage('أدخل قيمة دفعة أكبر من صفر')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ حفظ الدفعة...')
 
     try {
       await createPayment({
@@ -1446,6 +1517,7 @@ function PaperDetailsModal({
     }
 
     setSaving(true)
+    setMessage('جارٍ رفع الصورة الجديدة...')
 
     try {
       const path = await uploadPaperImage(
@@ -1486,7 +1558,7 @@ function PaperDetailsModal({
         await reopenPaper(paper.id)
       }
 
-      setMessage('تم تحديث الحالة')
+      setMessage('تم تحديث حالة الورقة')
       await onChanged()
     } catch (error) {
       setMessage(error.message)
@@ -1514,6 +1586,7 @@ function PaperDetailsModal({
   }
 
   const paymentsTotal = getPaymentsTotal(paper)
+
   const balance = calculateBalance(
     paper.total_amount,
     paper.payments
@@ -1565,6 +1638,65 @@ function PaperDetailsModal({
 
         {paper.note && (
           <p>الملاحظة: {paper.note}</p>
+        )}
+
+        <button
+          className="amount-button"
+          onClick={() => {
+            setNewAmount(
+              paper.total_amount === null
+                ? ''
+                : String(paper.total_amount)
+            )
+            setShowAmountForm(!showAmountForm)
+          }}
+        >
+          {paper.total_amount === null
+            ? 'إضافة قيمة الورقة'
+            : 'تعديل قيمة الورقة'}
+        </button>
+
+        {showAmountForm && (
+          <form
+            className="amount-form"
+            onSubmit={saveAmount}
+          >
+            <h3>قيمة الورقة</h3>
+
+            <label>
+              القيمة
+              <input
+                type="number"
+                step="0.01"
+                value={newAmount}
+                onChange={(event) =>
+                  setNewAmount(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <div className="form-actions">
+              <button
+                type="submit"
+                disabled={saving}
+              >
+                {saving
+                  ? 'جارٍ الحفظ...'
+                  : 'حفظ القيمة'}
+              </button>
+
+              <button
+                type="button"
+                className="cancel-button"
+                onClick={() =>
+                  setShowAmountForm(false)
+                }
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
         )}
 
         <div className="status-actions">

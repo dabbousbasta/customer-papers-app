@@ -34,7 +34,9 @@ export async function createPaper({
       image_path: imagePath,
       note: note?.trim() || null,
       total_amount:
-        totalAmount === '' || totalAmount === null
+        totalAmount === '' ||
+        totalAmount === null ||
+        totalAmount === undefined
           ? null
           : Number(totalAmount),
       status: 'open',
@@ -58,8 +60,11 @@ export async function createPaper({
   return data
 }
 
-export async function getPapers() {
-  const { data, error } = await supabase
+export async function getPapers({
+  includeArchived = false,
+  customerId = null
+} = {}) {
+  let query = supabase
     .from('papers')
     .select(`
       *,
@@ -76,8 +81,19 @@ export async function getPapers() {
         is_archived
       )
     `)
-    .neq('status', 'archived')
-    .order('paper_date', { ascending: false })
+    .order('paper_date', {
+      ascending: false
+    })
+
+  if (!includeArchived) {
+    query = query.neq('status', 'archived')
+  }
+
+  if (customerId) {
+    query = query.eq('customer_id', customerId)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw error
@@ -96,6 +112,43 @@ export async function updatePaperImagePath(
     .from('papers')
     .update({
       image_path: imagePath,
+      updated_by: user.id
+    })
+    .eq('id', paperId)
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+export async function updatePaperAmount(
+  paperId,
+  totalAmount
+) {
+  const user = await getCurrentUser()
+
+  const numericAmount =
+    totalAmount === '' ||
+    totalAmount === null ||
+    totalAmount === undefined
+      ? null
+      : Number(totalAmount)
+
+  if (
+    numericAmount !== null &&
+    Number.isNaN(numericAmount)
+  ) {
+    throw new Error('أدخل قيمة صحيحة للورقة')
+  }
+
+  const { data, error } = await supabase
+    .from('papers')
+    .update({
+      total_amount: numericAmount,
       updated_by: user.id
     })
     .eq('id', paperId)
@@ -158,15 +211,22 @@ export async function archivePaper(
   return data
 }
 
-export function calculateBalance(totalAmount, payments = []) {
-  if (totalAmount === null || totalAmount === undefined) {
+export function calculateBalance(
+  totalAmount,
+  payments = []
+) {
+  if (
+    totalAmount === null ||
+    totalAmount === undefined
+  ) {
     return null
   }
 
   const paid = payments
     .filter((payment) => !payment.is_archived)
     .reduce(
-      (sum, payment) => sum + Number(payment.amount || 0),
+      (sum, payment) =>
+        sum + Number(payment.amount || 0),
       0
     )
 
