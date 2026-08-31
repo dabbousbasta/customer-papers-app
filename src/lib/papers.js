@@ -68,6 +68,13 @@ export async function createPaper({
 }) {
   const user = await getCurrentUser()
 
+  const numericAmount =
+    totalAmount === '' ||
+    totalAmount === null ||
+    totalAmount === undefined
+      ? null
+      : Number(totalAmount)
+
   const { data, error } = await supabase
     .from('papers')
     .insert({
@@ -75,24 +82,12 @@ export async function createPaper({
       paper_date: paperDate,
       image_path: imagePath,
       note: note?.trim() || null,
-      total_amount:
-        totalAmount === '' ||
-        totalAmount === null ||
-        totalAmount === undefined
-          ? null
-          : Number(totalAmount),
+      total_amount: numericAmount,
       status: 'open',
       created_by: user.id,
       updated_by: user.id
     })
-    .select(`
-      *,
-      customers (
-        id,
-        name,
-        phone
-      )
-    `)
+    .select()
     .single()
 
   if (error) {
@@ -237,7 +232,7 @@ export function calculateBalance(
     return null
   }
 
-  const paid = payments
+  const paymentsTotal = payments
     .filter((payment) => !payment.is_archived)
     .reduce(
       (sum, payment) =>
@@ -245,5 +240,5 @@ export function calculateBalance(
       0
     )
 
-  return Number(totalAmount) - paid
+  return Number(totalAmount) - paymentsTotal
 }

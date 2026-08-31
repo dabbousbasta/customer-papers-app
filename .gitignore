@@ -1,4 +1,27 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
 .env
-.env.local
+.env.*
+!.env.example
+
+# Local editor files
+.vscode/
+.idea/
+
+# Backup files created during development
+*.backup
+*.before-*
+*.customers-backup
+*.dashboard-backup
+*.login-backup
+*.paper-backup
+*.parse-error-backup
+*.white-screen-backup
+
+# Accidental command-output file
+npm.cmd run dev.txt

@@ -236,6 +236,66 @@ label select {
   margin-top: 24px;
 }
 
+.recent-customers-section {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #cfe4ff;
+  border-radius: 18px;
+  background: #f0f7ff;
+}
+
+.recent-customers-section .section-header {
+  margin-top: 0;
+}
+
+.clear-recent-button {
+  min-height: 38px;
+  padding: 6px 12px;
+  color: #334155;
+  background: #dbeafe;
+}
+
+.recent-customers-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.recent-customer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #cbdff5;
+  border-radius: 14px;
+  background: white;
+}
+
+.recent-customer-main {
+  display: flex;
+  min-height: 62px;
+  align-items: flex-start;
+  flex-direction: column;
+  padding: 10px;
+  color: #0f3d68;
+  background: #f8fbff;
+  text-align: right;
+}
+
+.recent-customer-main small {
+  margin-top: 5px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.recent-paper-button {
+  min-height: 36px;
+  padding: 6px 10px;
+  background: #0f766e;
+  font-size: 0.82rem;
+}
+
 .customer-picker-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -705,6 +765,10 @@ label select {
   .customer-picker-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .recent-customers-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 650px) {
@@ -732,7 +796,8 @@ label select {
     text-align: center;
   }
 
-  .customer-picker-list {
+  .customer-picker-list,
+  .recent-customers-list {
     grid-template-columns: 1fr;
   }
 
@@ -763,6 +828,10 @@ label select {
     align-items: stretch;
     flex-direction: column;
     gap: 13px;
+  }
+
+  .clear-recent-button {
+    width: 100%;
   }
 
   .customer-summary-actions {

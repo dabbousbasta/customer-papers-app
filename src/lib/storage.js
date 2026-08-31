@@ -38,7 +38,7 @@ export async function uploadPaperImage(file, paperId) {
 
 export async function createPaperImageUrl(
   imagePath,
-  expiresIn = 86400
+  expiresIn = 3600
 ) {
   if (!imagePath) {
     return null
@@ -73,7 +73,7 @@ export async function savePaperImageHistory({
     throw new Error('يجب تسجيل الدخول أولًا')
   }
 
-  const { error: oldImagesError } = await supabase
+  const { error: updateError } = await supabase
     .from('paper_images')
     .update({
       is_current: false
@@ -81,8 +81,8 @@ export async function savePaperImageHistory({
     .eq('paper_id', paperId)
     .eq('is_current', true)
 
-  if (oldImagesError) {
-    throw oldImagesError
+  if (updateError) {
+    throw updateError
   }
 
   const cleanDescription =
@@ -118,8 +118,7 @@ export async function getPaperImageHistory(paperId) {
       is_current,
       description,
       note,
-      created_at,
-      created_by
+      created_at
     `)
     .eq('paper_id', paperId)
     .order('created_at', {

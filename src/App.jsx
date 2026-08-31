@@ -32,6 +32,9 @@ import {
   openWhatsAppMessage
 } from './lib/whatsapp'
 
+const RECENT_CUSTOMERS_KEY =
+  'customer-papers-recent-customers'
+
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -220,12 +223,15 @@ function CustomerSelectPage({
 }) {
   const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
+  const [recentCustomers, setRecentCustomers] =
+    useState([])
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadCustomers('')
+    loadRecentCustomers()
   }, [])
 
   async function loadCustomers(searchText) {
@@ -243,6 +249,67 @@ function CustomerSelectPage({
     setLoading(false)
   }
 
+  function loadRecentCustomers() {
+    try {
+      const stored = localStorage.getItem(
+        RECENT_CUSTOMERS_KEY
+      )
+
+      if (!stored) {
+        setRecentCustomers([])
+        return
+      }
+
+      const parsed = JSON.parse(stored)
+
+      if (Array.isArray(parsed)) {
+        setRecentCustomers(parsed)
+      } else {
+        setRecentCustomers([])
+      }
+    } catch {
+      setRecentCustomers([])
+    }
+  }
+
+  function saveRecentCustomer(customer) {
+    const withoutCurrent = recentCustomers.filter(
+      (item) => item.id !== customer.id
+    )
+
+    const updated = [
+      {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone || '',
+        usedAt: new Date().toISOString()
+      },
+      ...withoutCurrent
+    ].slice(0, 8)
+
+    setRecentCustomers(updated)
+
+    localStorage.setItem(
+      RECENT_CUSTOMERS_KEY,
+      JSON.stringify(updated)
+    )
+  }
+
+  function openCustomer(customer) {
+    saveRecentCustomer(customer)
+    navigate(`/customer/${customer.id}`)
+  }
+
+  function openQuickPaper(customer) {
+    saveRecentCustomer(customer)
+    navigate(`/customer/${customer.id}/papers`)
+  }
+
+  function clearRecentCustomers() {
+    localStorage.removeItem(RECENT_CUSTOMERS_KEY)
+    setRecentCustomers([])
+  }
+
   return (
     <main dir="rtl" className="app-page">
       <Header
@@ -257,6 +324,55 @@ function CustomerSelectPage({
           بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.
         </p>
       </section>
+
+      {recentCustomers.length > 0 && (
+        <section className="recent-customers-section">
+          <div className="section-header">
+            <div>
+              <h2>آخر الزبائن المستخدمين</h2>
+              <p>
+                آخر 8 زبائن تم فتحهم على هذا الجهاز.
+              </p>
+            </div>
+
+            <button
+              className="clear-recent-button"
+              onClick={clearRecentCustomers}
+            >
+              مسح القائمة
+            </button>
+          </div>
+
+          <div className="recent-customers-list">
+            {recentCustomers.map((customer) => (
+              <article
+                className="recent-customer-card"
+                key={customer.id}
+              >
+                <button
+                  className="recent-customer-main"
+                  onClick={() => openCustomer(customer)}
+                >
+                  <strong>{customer.name}</strong>
+
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
+                </button>
+
+                <button
+                  className="recent-paper-button"
+                  onClick={() =>
+                    openQuickPaper(customer)
+                  }
+                >
+                  ورقة جديدة
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="search-box">
         <input
@@ -292,11 +408,7 @@ function CustomerSelectPage({
             >
               <button
                 className="customer-picker-item"
-                onClick={() =>
-                  navigate(
-                    `/customer/${customer.id}`
-                  )
-                }
+                onClick={() => openCustomer(customer)}
               >
                 <strong>{customer.name}</strong>
 
@@ -308,9 +420,7 @@ function CustomerSelectPage({
               <button
                 className="quick-paper-button"
                 onClick={() =>
-                  navigate(
-                    `/customer/${customer.id}/papers`
-                  )
+                  openQuickPaper(customer)
                 }
               >
                 إضافة ورقة
@@ -489,9 +599,8 @@ function CustomerSummary({ customer }) {
   )
 
   const totalOpenPayments = openPapers.reduce(
-    (sum, paper) => {
-      return sum + getPaymentsTotal(paper)
-    },
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
     0
   )
 
@@ -536,9 +645,7 @@ function CustomerSummary({ customer }) {
       </div>
 
       <p className="summary-note">
-        الملخص المالي أعلاه يحسب الأوراق المفتوحة فقط.
-        الأوراق المغلقة والمؤرشفة لا تدخل في الرصيد أو
-        إجمالي الدفعات المفتوح.
+        الملخص المالي يحسب الأوراق المفتوحة فقط.
       </p>
 
       <div className="customer-summary-actions">
