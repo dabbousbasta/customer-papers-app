@@ -32,9 +32,6 @@ import {
   openWhatsAppMessage
 } from './lib/whatsapp'
 
-const RECENT_CUSTOMERS_KEY =
-  'customer-papers-recent-customers'
-
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -223,15 +220,12 @@ function CustomerSelectPage({
 }) {
   const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
-  const [recentCustomers, setRecentCustomers] =
-    useState([])
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadCustomers('')
-    loadRecentCustomers()
   }, [])
 
   async function loadCustomers(searchText) {
@@ -249,67 +243,6 @@ function CustomerSelectPage({
     setLoading(false)
   }
 
-  function loadRecentCustomers() {
-    try {
-      const saved = localStorage.getItem(
-        RECENT_CUSTOMERS_KEY
-      )
-
-      if (!saved) {
-        setRecentCustomers([])
-        return
-      }
-
-      const parsed = JSON.parse(saved)
-
-      if (Array.isArray(parsed)) {
-        setRecentCustomers(parsed)
-      } else {
-        setRecentCustomers([])
-      }
-    } catch {
-      setRecentCustomers([])
-    }
-  }
-
-  function saveRecentCustomer(customer) {
-    const current = recentCustomers.filter(
-      (item) => item.id !== customer.id
-    )
-
-    const updated = [
-      {
-        id: customer.id,
-        name: customer.name,
-        phone: customer.phone || '',
-        usedAt: new Date().toISOString()
-      },
-      ...current
-    ].slice(0, 8)
-
-    setRecentCustomers(updated)
-
-    localStorage.setItem(
-      RECENT_CUSTOMERS_KEY,
-      JSON.stringify(updated)
-    )
-  }
-
-  function openCustomer(customer) {
-    saveRecentCustomer(customer)
-    navigate(`/customer/${customer.id}`)
-  }
-
-  function openQuickPaper(customer) {
-    saveRecentCustomer(customer)
-    navigate(`/customer/${customer.id}/papers`)
-  }
-
-  function clearRecentCustomers() {
-    localStorage.removeItem(RECENT_CUSTOMERS_KEY)
-    setRecentCustomers([])
-  }
-
   return (
     <main dir="rtl" className="app-page">
       <Header
@@ -324,55 +257,6 @@ function CustomerSelectPage({
           بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.
         </p>
       </section>
-
-      {recentCustomers.length > 0 && (
-        <section className="recent-customers-section">
-          <div className="section-header">
-            <div>
-              <h2>آخر الزبائن المستخدمين</h2>
-              <p>
-                يظهر آخر 8 زبائن تم فتحهم على هذا الجهاز.
-              </p>
-            </div>
-
-            <button
-              className="clear-recent-button"
-              onClick={clearRecentCustomers}
-            >
-              مسح القائمة
-            </button>
-          </div>
-
-          <div className="recent-customers-list">
-            {recentCustomers.map((customer) => (
-              <article
-                className="recent-customer-card"
-                key={customer.id}
-              >
-                <button
-                  className="recent-customer-main"
-                  onClick={() => openCustomer(customer)}
-                >
-                  <strong>{customer.name}</strong>
-
-                  {customer.phone && (
-                    <small>{customer.phone}</small>
-                  )}
-                </button>
-
-                <button
-                  className="recent-paper-button"
-                  onClick={() =>
-                    openQuickPaper(customer)
-                  }
-                >
-                  ورقة جديدة
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section className="search-box">
         <input
@@ -408,7 +292,11 @@ function CustomerSelectPage({
             >
               <button
                 className="customer-picker-item"
-                onClick={() => openCustomer(customer)}
+                onClick={() =>
+                  navigate(
+                    `/customer/${customer.id}`
+                  )
+                }
               >
                 <strong>{customer.name}</strong>
 
@@ -420,7 +308,9 @@ function CustomerSelectPage({
               <button
                 className="quick-paper-button"
                 onClick={() =>
-                  openQuickPaper(customer)
+                  navigate(
+                    `/customer/${customer.id}/papers`
+                  )
                 }
               >
                 إضافة ورقة
@@ -598,9 +488,10 @@ function CustomerSummary({ customer }) {
     (paper) => paper.status === 'open'
   )
 
-  const totalPayments = papers.reduce(
-    (sum, paper) =>
-      sum + getPaymentsTotal(paper),
+  const totalOpenPayments = openPapers.reduce(
+    (sum, paper) => {
+      return sum + getPaymentsTotal(paper)
+    },
     0
   )
 
@@ -627,20 +518,28 @@ function CustomerSummary({ customer }) {
         </article>
 
         <article className="summary-card">
-          <span>المفتوحة</span>
+          <span>الأوراق المفتوحة</span>
           <strong>{openPapers.length}</strong>
         </article>
 
         <article className="summary-card">
-          <span>إجمالي الدفعات</span>
-          <strong>{totalPayments.toFixed(2)}</strong>
+          <span>دفعات الأوراق المفتوحة</span>
+          <strong>
+            {totalOpenPayments.toFixed(2)}
+          </strong>
         </article>
 
         <article className="summary-card total-summary-card">
-          <span>الرصيد النهائي</span>
+          <span>الرصيد النهائي المفتوح</span>
           <strong>{finalBalance.toFixed(2)}</strong>
         </article>
       </div>
+
+      <p className="summary-note">
+        الملخص المالي أعلاه يحسب الأوراق المفتوحة فقط.
+        الأوراق المغلقة والمؤرشفة لا تدخل في الرصيد أو
+        إجمالي الدفعات المفتوح.
+      </p>
 
       <div className="customer-summary-actions">
         <Link
@@ -1007,7 +906,8 @@ function CustomerPayments({ customer }) {
       .filter((payment) => !payment.is_archived)
       .map((payment) => ({
         ...payment,
-        paperDate: paper.paper_date
+        paperDate: paper.paper_date,
+        paperStatus: paper.status
       }))
   })
 
@@ -1016,7 +916,10 @@ function CustomerPayments({ customer }) {
       <div className="section-header">
         <div>
           <h2>دفعات {customer.name}</h2>
-          <p>عدد الدفعات: {payments.length}</p>
+          <p>
+            كل الدفعات التاريخية، بما فيها دفعات الأوراق
+            المغلقة.
+          </p>
         </div>
       </div>
 
@@ -1113,6 +1016,11 @@ function CustomerPayments({ customer }) {
                   تاريخ الورقة: {payment.paperDate}
                 </span>
 
+                <span>
+                  حالة الورقة:{' '}
+                  {getStatusText(payment.paperStatus)}
+                </span>
+
                 {payment.note && (
                   <small>{payment.note}</small>
                 )}
@@ -1150,14 +1058,18 @@ function CustomerReport({ customer }) {
     setMessage('جارٍ تجهيز التقرير...')
 
     try {
+      const openPapers = papers.filter(
+        (paper) => paper.status === 'open'
+      )
+
       const text =
         await buildCustomerWhatsAppReport(
           customer,
-          papers
+          openPapers
         )
 
       openWhatsAppMessage(text)
-      setMessage('تم تجهيز التقرير')
+      setMessage('تم تجهيز تقرير الأوراق المفتوحة')
     } catch (error) {
       setMessage(error.message)
     }
@@ -1165,6 +1077,12 @@ function CustomerReport({ customer }) {
 
   const openPapers = papers.filter(
     (paper) => paper.status === 'open'
+  )
+
+  const totalOpenPayments = openPapers.reduce(
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
+    0
   )
 
   const finalBalance = openPapers.reduce(
@@ -1186,7 +1104,9 @@ function CustomerReport({ customer }) {
       <div className="section-header">
         <div>
           <h2>تقرير {customer.name}</h2>
-          <p>الأوراق المفتوحة</p>
+          <p>
+            هذا التقرير يحتوي الأوراق المفتوحة فقط.
+          </p>
         </div>
 
         <button
@@ -1202,51 +1122,64 @@ function CustomerReport({ customer }) {
       )}
 
       <section className="report-summary-card">
-        <span>الرصيد النهائي</span>
-        <strong>{finalBalance.toFixed(2)}</strong>
+        <div>
+          <span>دفعات الأوراق المفتوحة</span>
+          <strong>{totalOpenPayments.toFixed(2)}</strong>
+        </div>
+
+        <div>
+          <span>الرصيد النهائي المفتوح</span>
+          <strong>{finalBalance.toFixed(2)}</strong>
+        </div>
       </section>
 
       <section className="papers-list">
-        {openPapers.map((paper) => {
-          const balance = calculateBalance(
-            paper.total_amount,
-            paper.payments
-          )
+        {openPapers.length === 0 ? (
+          <div className="empty-card">
+            لا توجد أوراق مفتوحة
+          </div>
+        ) : (
+          openPapers.map((paper) => {
+            const balance = calculateBalance(
+              paper.total_amount,
+              paper.payments
+            )
 
-          const amountText =
-            paper.total_amount === null
-              ? 'غير محسوبة'
-              : paper.total_amount
+            const amountText =
+              paper.total_amount === null
+                ? 'غير محسوبة'
+                : paper.total_amount
 
-          const balanceText =
-            balance === null
-              ? 'غير محسوب'
-              : balance.toFixed(2)
+            const balanceText =
+              balance === null
+                ? 'غير محسوب'
+                : balance.toFixed(2)
 
-          return (
-            <article
-              className="report-paper-row"
-              key={paper.id}
-            >
-              <span>
-                التاريخ: {paper.paper_date}
-              </span>
+            return (
+              <article
+                className="report-paper-row"
+                key={paper.id}
+              >
+                <span>
+                  التاريخ: {paper.paper_date}
+                </span>
 
-              <span>
-                القيمة: {amountText}
-              </span>
+                <span>
+                  القيمة: {amountText}
+                </span>
 
-              <span>
-                الدفعات:{' '}
-                {getPaymentsTotal(paper).toFixed(2)}
-              </span>
+                <span>
+                  الدفعات:{' '}
+                  {getPaymentsTotal(paper).toFixed(2)}
+                </span>
 
-              <strong>
-                الرصيد: {balanceText}
-              </strong>
-            </article>
-          )
-        })}
+                <strong>
+                  الرصيد: {balanceText}
+                </strong>
+              </article>
+            )
+          })
+        )}
       </section>
     </section>
   )

@@ -340,6 +340,16 @@ label select {
   color: #15803d;
 }
 
+.summary-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #1e40af;
+  background: #dbeafe;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .customer-summary-actions {
   display: flex;
   flex-wrap: wrap;
@@ -507,7 +517,14 @@ label select {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+}
+
+.report-summary-card div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .report-summary-card span {
@@ -516,7 +533,7 @@ label select {
 
 .report-summary-card strong {
   color: #15803d;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
 }
 
 .report-paper-row {
@@ -784,6 +801,11 @@ label select {
 
   .form-actions button {
     width: 100%;
+  }
+
+  .report-summary-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .modal-backdrop {
