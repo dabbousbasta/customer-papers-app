@@ -25,6 +25,10 @@ import {
   updatePayment
 } from './lib/payments'
 import { getDashboardData } from './lib/reports'
+import {
+  buildCustomerWhatsAppReport,
+  openWhatsAppMessage
+} from './lib/whatsapp'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -46,11 +50,15 @@ function App() {
   const [search, setSearch] = useState('')
   const [showReports, setShowReports] = useState(false)
 
-  const [showCustomerForm, setShowCustomerForm] = useState(false)
-  const [showPaperForm, setShowPaperForm] = useState(false)
-  const [editingCustomer, setEditingCustomer] = useState(null)
+  const [showCustomerForm, setShowCustomerForm] =
+    useState(false)
+  const [showPaperForm, setShowPaperForm] =
+    useState(false)
+  const [editingCustomer, setEditingCustomer] =
+    useState(null)
 
-  const [selectedPaper, setSelectedPaper] = useState(null)
+  const [selectedPaper, setSelectedPaper] =
+    useState(null)
   const [selectedPaperImage, setSelectedPaperImage] =
     useState(null)
 
@@ -61,17 +69,24 @@ function App() {
 
   const [showImageForm, setShowImageForm] =
     useState(false)
-  const [newImageFile, setNewImageFile] = useState(null)
-  const [newImageNote, setNewImageNote] = useState('')
-  const [imageHistory, setImageHistory] = useState([])
+  const [newImageFile, setNewImageFile] =
+    useState(null)
+  const [newImageDescription, setNewImageDescription] =
+    useState('')
+  const [imageHistory, setImageHistory] =
+    useState([])
 
   const [showArchiveForm, setShowArchiveForm] =
     useState(false)
-  const [archiveReason, setArchiveReason] = useState('')
+  const [archiveReason, setArchiveReason] =
+    useState('')
 
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerNotes, setCustomerNotes] = useState('')
+  const [customerName, setCustomerName] =
+    useState('')
+  const [customerPhone, setCustomerPhone] =
+    useState('')
+  const [customerNotes, setCustomerNotes] =
+    useState('')
 
   const [selectedCustomerId, setSelectedCustomerId] =
     useState('')
@@ -80,13 +95,16 @@ function App() {
   )
   const [paperFile, setPaperFile] = useState(null)
   const [paperNote, setPaperNote] = useState('')
-  const [totalAmount, setTotalAmount] = useState('')
+  const [totalAmount, setTotalAmount] =
+    useState('')
 
-  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentAmount, setPaymentAmount] =
+    useState('')
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
   )
-  const [paymentNote, setPaymentNote] = useState('')
+  const [paymentNote, setPaymentNote] =
+    useState('')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -242,13 +260,15 @@ function App() {
 
   async function openPaperDetails(paper) {
     try {
-      setMessage('جارٍ تحميل تفاصيل الورقة...')
+      setMessage('جارٍ تحميل التفاصيل...')
 
       const imageUrl = await createPaperImageUrl(
         paper.image_path
       )
 
-      const history = await getPaperImageHistory(paper.id)
+      const history = await getPaperImageHistory(
+        paper.id
+      )
 
       setSelectedPaper(paper)
       setSelectedPaperImage(imageUrl)
@@ -313,7 +333,7 @@ function App() {
 
   function resetImageForm() {
     setNewImageFile(null)
-    setNewImageNote('')
+    setNewImageDescription('')
   }
 
   function resetArchiveForm() {
@@ -520,7 +540,7 @@ function App() {
       await savePaperImageHistory({
         paperId: selectedPaper.id,
         imagePath: newImagePath,
-        note: newImageNote
+        description: newImageDescription
       })
 
       await updatePaperImagePath(
@@ -533,7 +553,7 @@ function App() {
       resetImageForm()
       setShowImageForm(false)
       setMessage(
-        'تم استبدال الصورة وحفظ الصورة القديمة في السجل'
+        'تم استبدال الصورة وحفظ الصورة القديمة'
       )
     } catch (error) {
       setMessage(
@@ -603,9 +623,43 @@ function App() {
     }
   }
 
+  async function shareCustomerReport(customerId) {
+    const customer = customers.find(
+      (item) => item.id === customerId
+    )
+
+    if (!customer) {
+      setMessage('لم يتم العثور على الزبون')
+      return
+    }
+
+    setMessage('جارٍ تجهيز التقرير والروابط...')
+
+    try {
+      const customerPapers = papers.filter(
+        (paper) => paper.customer_id === customerId
+      )
+
+      const text = await buildCustomerWhatsAppReport(
+        customer,
+        customerPapers
+      )
+
+      openWhatsAppMessage(text)
+      setMessage('تم تجهيز رسالة WhatsApp')
+    } catch (error) {
+      setMessage(
+        error.message || 'فشل تجهيز تقرير WhatsApp'
+      )
+    }
+  }
+
   async function openOldImage(imagePath) {
     try {
-      const imageUrl = await createPaperImageUrl(imagePath)
+      const imageUrl = await createPaperImageUrl(
+        imagePath
+      )
+
       window.open(imageUrl, '_blank')
     } catch (error) {
       setMessage(`فشل فتح الصورة القديمة: ${error.message}`)
@@ -616,7 +670,8 @@ function App() {
     return (paper.payments || [])
       .filter((payment) => !payment.is_archived)
       .reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
+        (sum, payment) =>
+          sum + Number(payment.amount || 0),
         0
       )
   }
@@ -785,14 +840,27 @@ function App() {
                     </p>
                   </div>
 
-                  <strong>
-                    {formatAmount(report.totalRemaining)}
-                  </strong>
+                  <div className="report-actions">
+                    <strong>
+                      {formatAmount(report.totalRemaining)}
+                    </strong>
+
+                    <button
+                      className="whatsapp-button"
+                      onClick={() =>
+                        shareCustomerReport(
+                          report.customerId
+                        )
+                      }
+                    >
+                      WhatsApp
+                    </button>
+                  </div>
                 </article>
               ))}
 
               <div className="report-total">
-                الإجمالي العام:
+                <span>الإجمالي العام:</span>
                 <strong>
                   {formatAmount(dashboard.totalRemaining)}
                 </strong>
@@ -1145,11 +1213,13 @@ function App() {
                 </label>
 
                 <label>
-                  سبب أو ملاحظة التعديل
+                  وصف الصورة
                   <textarea
-                    value={newImageNote}
+                    value={newImageDescription}
                     onChange={(event) =>
-                      setNewImageNote(event.target.value)
+                      setNewImageDescription(
+                        event.target.value
+                      )
                     }
                     rows="2"
                     placeholder="مثال: تمت إضافة أسعار جديدة"
@@ -1422,9 +1492,11 @@ function App() {
                         ).toLocaleString('ar-LB')}
                       </span>
 
-                      {image.note && (
-                        <small>{image.note}</small>
-                      )}
+                      <small>
+                        {image.description ||
+                          image.note ||
+                          'صورة بدون وصف'}
+                      </small>
                     </div>
 
                     <button

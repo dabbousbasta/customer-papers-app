@@ -1,132 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
-
-:root {
-  font-family: 'Cairo', Arial, sans-serif;
-  color: #172033;
-  background: #f3f6fb;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  direction: rtl;
-  background: #f3f6fb;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button {
-  min-height: 46px;
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 10px;
-  cursor: pointer;
-  color: white;
-  background: #1769aa;
-}
-
-button:hover {
-  opacity: 0.9;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-input,
-textarea,
-select {
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 12px;
-  border: 1px solid #d7deea;
-  border-radius: 10px;
-  background: white;
-}
-
-main {
-  width: min(100% - 32px, 1100px);
-  margin: auto;
-  padding: 24px 0;
-}
-
-.auth-page {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-}
-
-.auth-card {
-  width: min(100%, 430px);
-  padding: 28px;
-  border-radius: 18px;
-  background: white;
-  box-shadow: 0 10px 30px rgb(20 40 80 / 10%);
-  text-align: center;
-}
-
-.auth-card form {
-  margin-top: 24px;
-  text-align: right;
-}
-
-label {
-  display: block;
-  margin: 14px 0;
-  font-weight: 600;
-}
-
-label input,
-label textarea,
-label select {
-  margin-top: 7px;
-  font-weight: 400;
-}
-
-.auth-card button {
-  width: 100%;
-  margin-top: 10px;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 18px;
-  color: white;
-  background: #1769aa;
-}
-
-.topbar h1,
-.topbar p {
-  margin: 0;
-}
-
-.topbar p {
-  margin-top: 6px;
-  opacity: 0.9;
-}
-
-.secondary-button {
-  background: rgb(255 255 255 / 18%);
-  border: 1px solid rgb(255 255 255 / 40%);
-}
-
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -162,32 +33,6 @@ label select {
   color: #0f766e;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.section-header h2,
-.section-header p {
-  margin: 0;
-}
-
-.section-header p {
-  color: #64748b;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.header-actions button:first-child {
-  background: #0f766e;
-}
-
 .reports-button {
   background: #7c3aed;
 }
@@ -200,36 +45,16 @@ label select {
   box-shadow: 0 8px 24px rgb(20 40 80 / 7%);
 }
 
-.reports-card h2 {
-  margin-top: 0;
-}
-
-.reports-list {
-  display: grid;
-  gap: 10px;
-}
-
-.report-row {
+.report-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
-  border-radius: 12px;
-  background: #f8fafc;
+  gap: 12px;
 }
 
-.report-row h3,
-.report-row p {
-  margin: 3px 0;
-}
-
-.report-row p {
-  color: #64748b;
-}
-
-.report-row strong {
-  color: #0f766e;
+.whatsapp-button {
+  min-height: 38px;
+  padding: 6px 12px;
+  background: #25d366;
 }
 
 .report-total {
@@ -240,207 +65,24 @@ label select {
   border-top: 2px solid #d7deea;
 }
 
-.report-total strong {
-  color: #1769aa;
-}
-
-.search-box {
-  margin-top: 18px;
-}
-
-.form-card {
-  margin-top: 18px;
-  padding: 22px;
-  border-radius: 16px;
-  background: white;
-  box-shadow: 0 8px 24px rgb(20 40 80 / 7%);
-}
-
-.form-card h2 {
-  margin-top: 0;
-}
-
-.form-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.cancel-button {
-  color: #172033;
-  background: #e8edf5;
-}
-
-.message {
-  margin-top: 16px;
-  color: #1769aa;
-}
-
-.message.error {
-  color: #b42318;
-}
-
-.customers-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.customer-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 14px;
-  background: white;
-  box-shadow: 0 6px 18px rgb(20 40 80 / 6%);
-}
-
-.customer-card h3 {
-  margin: 0 0 6px;
-}
-
-.customer-card p {
-  margin: 4px 0;
-  color: #64748b;
-}
-
-.edit-button {
-  min-width: 80px;
-  background: #475569;
-}
-
-.empty-card {
-  padding: 28px;
-  border-radius: 14px;
-  color: #64748b;
-  background: white;
-  text-align: center;
-}
-
-.papers-section {
-  margin-top: 24px;
-}
-
-.papers-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.paper-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 14px;
-  background: white;
-  box-shadow: 0 6px 18px rgb(20 40 80 / 6%);
-}
-
-.paper-card h3,
-.paper-card p {
-  margin: 4px 0;
-}
-
-.paper-card p {
-  color: #64748b;
-}
-
-.details-button {
-  min-width: 90px;
-  background: #0f766e;
-}
-
-.modal-backdrop {
-  position: fixed;
-  z-index: 10;
-  inset: 0;
-  display: grid;
-  overflow-y: auto;
-  place-items: center;
-  padding: 20px;
-  background: rgb(15 23 42 / 60%);
-}
-
-.paper-details-modal {
-  position: relative;
-  width: min(100%, 700px);
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-  padding: 24px;
-  border-radius: 18px;
-  background: white;
-}
-
-.close-button {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  min-height: 38px;
-  padding: 6px 12px;
-  color: #172033;
-  background: #e8edf5;
-}
-
-.paper-image {
-  display: block;
-  width: 100%;
-  max-height: 500px;
-  margin: 20px 0;
-  border-radius: 12px;
-  object-fit: contain;
-  background: #f3f6fb;
-}
-
 .image-button {
   width: 100%;
   margin-bottom: 18px;
   background: #7c3aed;
 }
 
-.image-form,
-.payment-form,
-.archive-form {
+.image-form {
   margin: 16px 0;
   padding: 16px;
   border-radius: 12px;
   background: #f3f6fb;
 }
 
-.payment-button {
-  width: 100%;
-  margin: 16px 0;
-  background: #0f766e;
-}
-
-.status-actions {
-  display: grid;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.close-paper-button {
-  background: #2563eb;
-}
-
-.reopen-paper-button {
-  background: #d97706;
-}
-
-.archive-button {
-  background: #b42318;
-}
-
-.payments-list,
 .image-history-list {
   padding: 0;
   list-style: none;
 }
 
-.payments-list li,
 .image-history-list li {
   display: flex;
   align-items: center;
@@ -450,22 +92,14 @@ label select {
   border-bottom: 1px solid #e2e8f0;
 }
 
-.payments-list li div,
 .image-history-list li div {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.payments-list small,
 .image-history-list small {
   color: #64748b;
-}
-
-.small-button {
-  min-height: 36px;
-  padding: 6px 12px;
-  background: #475569;
 }
 
 @media (max-width: 900px) {
@@ -475,20 +109,6 @@ label select {
 }
 
 @media (max-width: 600px) {
-  main {
-    width: min(100% - 20px, 1100px);
-    padding: 10px 0;
-  }
-
-  .topbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .secondary-button {
-    width: 100%;
-  }
-
   .dashboard-cards {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -503,46 +123,17 @@ label select {
     font-size: 1.5rem;
   }
 
-  .section-header {
+  .report-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .header-actions {
-    flex-direction: column;
-  }
-
-  .header-actions button {
+  .whatsapp-button {
     width: 100%;
   }
 
-  .customer-card,
-  .paper-card {
+  .image-history-list li {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .edit-button,
-  .details-button {
-    width: 100%;
-  }
-
-  .form-actions {
-    flex-direction: column;
-  }
-
-  .form-actions button {
-    width: 100%;
-  }
-
-  .payments-list li,
-  .image-history-list li,
-  .report-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .small-button {
-    width: 100%;
   }
 }

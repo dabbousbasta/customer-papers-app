@@ -36,14 +36,17 @@ export async function uploadPaperImage(file, paperId) {
   return path
 }
 
-export async function createPaperImageUrl(imagePath) {
+export async function createPaperImageUrl(
+  imagePath,
+  expiresIn = 86400
+) {
   if (!imagePath) {
     return null
   }
 
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
-    .createSignedUrl(imagePath, 60 * 60)
+    .createSignedUrl(imagePath, expiresIn)
 
   if (error) {
     throw error
@@ -55,7 +58,7 @@ export async function createPaperImageUrl(imagePath) {
 export async function savePaperImageHistory({
   paperId,
   imagePath,
-  note
+  description
 }) {
   const {
     data: { user },
@@ -72,7 +75,9 @@ export async function savePaperImageHistory({
 
   const { error: oldImagesError } = await supabase
     .from('paper_images')
-    .update({ is_current: false })
+    .update({
+      is_current: false
+    })
     .eq('paper_id', paperId)
     .eq('is_current', true)
 
@@ -80,13 +85,17 @@ export async function savePaperImageHistory({
     throw oldImagesError
   }
 
+  const cleanDescription =
+    description?.trim() || null
+
   const { data, error } = await supabase
     .from('paper_images')
     .insert({
       paper_id: paperId,
       image_path: imagePath,
       is_current: true,
-      note: note?.trim() || null,
+      description: cleanDescription,
+      note: cleanDescription,
       created_by: user.id
     })
     .select()
@@ -102,9 +111,20 @@ export async function savePaperImageHistory({
 export async function getPaperImageHistory(paperId) {
   const { data, error } = await supabase
     .from('paper_images')
-    .select('*')
+    .select(`
+      id,
+      paper_id,
+      image_path,
+      is_current,
+      description,
+      note,
+      created_at,
+      created_by
+    `)
     .eq('paper_id', paperId)
-    .order('created_at', { ascending: false })
+    .order('created_at', {
+      ascending: false
+    })
 
   if (error) {
     throw error
