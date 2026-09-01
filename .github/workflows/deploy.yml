@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -38,7 +38,16 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Upload Pages artifact
+      - name: Verify production build
+        run: |
+          test -f dist/index.html
+          test -d dist/assets
+          if grep -q "/src/main.jsx" dist/index.html; then
+            echo "Error: dist/index.html still points to src/main.jsx"
+            exit 1
+          fi
+
+      - name: Upload production build
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
