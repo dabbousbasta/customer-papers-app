@@ -8,7 +8,12 @@ import {
   useParams
 } from 'react-router-dom'
 import { supabase } from './lib/supabase'
-import { getCustomers } from './lib/customers'
+import {
+  archiveCustomer,
+  getCustomers,
+  restoreCustomer,
+  updateCustomer
+} from './lib/customers'
 import {
   archivePaper,
   calculateBalance,
@@ -257,17 +262,24 @@ function CustomerSelectPage({
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showArchived, setShowArchived] =
+    useState(false)
 
   useEffect(() => {
-    loadCustomers('')
+    loadCustomers('', false)
     loadRecentCustomers()
   }, [])
 
-  async function loadCustomers(searchText) {
+  async function loadCustomers(
+    searchText,
+    archivedOnly = showArchived
+  ) {
     setLoading(true)
 
     const { data, error } =
-      await getCustomers(searchText)
+      await getCustomers(searchText, {
+        archivedOnly
+      })
 
     if (error) {
       setMessage(error.message)
@@ -322,12 +334,39 @@ function CustomerSelectPage({
     )
   }
 
+  function removeRecentCustomer(customerId) {
+    const updated = recentCustomers.filter(
+      (item) => item.id !== customerId
+    )
+
+    setRecentCustomers(updated)
+
+    localStorage.setItem(
+      RECENT_CUSTOMERS_KEY,
+      JSON.stringify(updated)
+    )
+  }
+
   function openCustomer(customer) {
+    if (customer.is_archived) {
+      setMessage(
+        'هذا الزبون مؤرشف. ألغِ الأرشفة أولًا لفتحه.'
+      )
+      return
+    }
+
     saveRecentCustomer(customer)
     navigate(`/customer/${customer.id}`)
   }
 
   function openQuickPaper(customer) {
+    if (customer.is_archived) {
+      setMessage(
+        'لا يمكن إضافة ورقة لزبون مؤرشف. ألغِ الأرشفة أولًا.'
+      )
+      return
+    }
+
     saveRecentCustomer(customer)
     navigate(`/customer/${customer.id}/papers`)
   }
@@ -335,6 +374,33 @@ function CustomerSelectPage({
   function clearRecentCustomers() {
     localStorage.removeItem(RECENT_CUSTOMERS_KEY)
     setRecentCustomers([])
+  }
+
+  async function changeArchivedView() {
+    const nextValue = !showArchived
+
+    setShowArchived(nextValue)
+    setSearch('')
+    setMessage('')
+
+    await loadCustomers('', nextValue)
+  }
+
+  async function restoreArchivedCustomer(customer) {
+    try {
+      setMessage('جارٍ إلغاء أرشفة الزبون...')
+
+      await restoreCustomer(customer.id)
+      removeRecentCustomer(customer.id)
+
+      setMessage(
+        `تم إلغاء أرشفة الزبون: ${customer.name}`
+      )
+
+      await loadCustomers(search, true)
+    } catch (error) {
+      setMessage(error.message)
+    }
   }
 
   return (
@@ -346,72 +412,96 @@ function CustomerSelectPage({
       />
 
       <section className="customer-start-card">
-        <h2>اختر الزبون للبدء</h2>
-        <p>
-          بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.
-        </p>
+        <div>
+          <h2>
+            {showArchived
+              ? 'أرشيف الزبائن'
+              : 'اختر الزبون للبدء'}
+          </h2>
+
+          <p>
+            {showArchived
+              ? 'تظهر هنا الزبائن المؤرشفون فقط.'
+              : 'بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.'}
+          </p>
+        </div>
+
+        <button
+          className="archive-customer-list-button"
+          onClick={changeArchivedView}
+        >
+          {showArchived
+            ? 'العودة إلى الزبائن النشطين'
+            : 'أرشيف الزبائن'}
+        </button>
       </section>
 
-      {recentCustomers.length > 0 && (
-        <section className="recent-customers-section">
-          <div className="section-header">
-            <div>
-              <h2>آخر الزبائن المستخدمين</h2>
-              <p>
-                آخر 8 زبائن تم فتحهم على هذا الجهاز.
-              </p>
+      {!showArchived &&
+        recentCustomers.length > 0 && (
+          <section className="recent-customers-section">
+            <div className="section-header">
+              <div>
+                <h2>آخر الزبائن المستخدمين</h2>
+                <p>
+                  آخر 8 زبائن تم فتحهم على هذا الجهاز.
+                </p>
+              </div>
+
+              <button
+                className="clear-recent-button"
+                onClick={clearRecentCustomers}
+              >
+                مسح القائمة
+              </button>
             </div>
 
-            <button
-              className="clear-recent-button"
-              onClick={clearRecentCustomers}
-            >
-              مسح القائمة
-            </button>
-          </div>
-
-          <div className="recent-customers-list">
-            {recentCustomers.map((customer) => (
-              <article
-                className="recent-customer-card"
-                key={customer.id}
-              >
-                <button
-                  className="recent-customer-main"
-                  onClick={() =>
-                    openCustomer(customer)
-                  }
+            <div className="recent-customers-list">
+              {recentCustomers.map((customer) => (
+                <article
+                  className="recent-customer-card"
+                  key={customer.id}
                 >
-                  <strong>{customer.name}</strong>
+                  <button
+                    className="recent-customer-main"
+                    onClick={() =>
+                      openCustomer(customer)
+                    }
+                  >
+                    <strong>{customer.name}</strong>
 
-                  {customer.phone && (
-                    <small>{customer.phone}</small>
-                  )}
-                </button>
+                    {customer.phone && (
+                      <small>{customer.phone}</small>
+                    )}
+                  </button>
 
-                <button
-                  className="recent-paper-button"
-                  onClick={() =>
-                    openQuickPaper(customer)
-                  }
-                >
-                  ورقة جديدة
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+                  <button
+                    className="recent-paper-button"
+                    onClick={() =>
+                      openQuickPaper(customer)
+                    }
+                  >
+                    ورقة جديدة
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
       <section className="search-box">
         <input
           type="search"
-          placeholder="ابحث عن اسم الزبون..."
+          placeholder={
+            showArchived
+              ? 'ابحث عن زبون مؤرشف...'
+              : 'ابحث عن اسم الزبون...'
+          }
           value={search}
           onChange={(event) => {
             const value = event.target.value
+
             setSearch(value)
-            loadCustomers(value)
+            loadCustomers(value, showArchived)
           }}
         />
       </section>
@@ -426,7 +516,9 @@ function CustomerSelectPage({
         </div>
       ) : customers.length === 0 ? (
         <div className="empty-card">
-          لا يوجد زبائن
+          {showArchived
+            ? 'لا يوجد زبائن مؤرشفون'
+            : 'لا يوجد زبائن نشطون'}
         </div>
       ) : (
         <section className="customer-picker-list">
@@ -446,14 +538,25 @@ function CustomerSelectPage({
                 )}
               </button>
 
-              <button
-                className="quick-paper-button"
-                onClick={() =>
-                  openQuickPaper(customer)
-                }
-              >
-                إضافة ورقة
-              </button>
+              {showArchived ? (
+                <button
+                  className="restore-customer-button"
+                  onClick={() =>
+                    restoreArchivedCustomer(customer)
+                  }
+                >
+                  إلغاء الأرشفة
+                </button>
+              ) : (
+                <button
+                  className="quick-paper-button"
+                  onClick={() =>
+                    openQuickPaper(customer)
+                  }
+                >
+                  إضافة ورقة
+                </button>
+              )}
             </article>
           ))}
         </section>
@@ -467,8 +570,10 @@ function CustomerPage({
   signOut
 }) {
   const { customerId } = useParams()
+  const navigate = useNavigate()
   const [customer, setCustomer] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     loadCustomer()
@@ -477,14 +582,28 @@ function CustomerPage({
   async function loadCustomer() {
     setLoading(true)
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('customers')
       .select('*')
       .eq('id', customerId)
       .single()
 
-    setCustomer(data || null)
+    if (error) {
+      setMessage(error.message)
+      setCustomer(null)
+    } else {
+      setCustomer(data || null)
+    }
+
     setLoading(false)
+  }
+
+  async function handleCustomerSaved() {
+    await loadCustomer()
+  }
+
+  async function handleCustomerArchived() {
+    navigate('/')
   }
 
   if (loading) {
@@ -507,6 +626,45 @@ function CustomerPage({
         <div className="empty-card">
           لم يتم العثور على الزبون.
         </div>
+
+        {message && (
+          <p className="message error">{message}</p>
+        )}
+      </main>
+    )
+  }
+
+  if (customer.is_archived) {
+    return (
+      <main dir="rtl" className="app-page">
+        <Header
+          session={session}
+          signOut={signOut}
+          title={customer.name}
+        />
+
+        <section className="customer-context-card">
+          <div>
+            <span>زبون مؤرشف</span>
+            <h2>{customer.name}</h2>
+            <p>
+              هذا الزبون مؤرشف ولا يظهر في البحث العادي.
+            </p>
+          </div>
+
+          <Link
+            to="/"
+            className="change-customer-button"
+          >
+            العودة للزبائن
+          </Link>
+        </section>
+
+        <CustomerEditCard
+          customer={customer}
+          onSaved={handleCustomerSaved}
+          onArchived={handleCustomerArchived}
+        />
       </main>
     )
   }
@@ -527,6 +685,10 @@ function CustomerPage({
           {customer.phone && (
             <p>الهاتف: {customer.phone}</p>
           )}
+
+          {customer.notes && (
+            <p>ملاحظات: {customer.notes}</p>
+          )}
         </div>
 
         <Link
@@ -536,6 +698,12 @@ function CustomerPage({
           تغيير الزبون
         </Link>
       </section>
+
+      <CustomerEditCard
+        customer={customer}
+        onSaved={handleCustomerSaved}
+        onArchived={handleCustomerArchived}
+      />
 
       <nav className="customer-tabs">
         <Link to={`/customer/${customerId}`}>
@@ -591,6 +759,192 @@ function CustomerPage({
         />
       </Routes>
     </main>
+  )
+}
+
+function CustomerEditCard({
+  customer,
+  onSaved,
+  onArchived
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState(customer.name || '')
+  const [phone, setPhone] = useState(
+    customer.phone || ''
+  )
+  const [notes, setNotes] = useState(
+    customer.notes || ''
+  )
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setName(customer.name || '')
+    setPhone(customer.phone || '')
+    setNotes(customer.notes || '')
+  }, [customer])
+
+  async function saveCustomer(event) {
+    event.preventDefault()
+
+    if (!name.trim()) {
+      setMessage('اسم الزبون مطلوب')
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await updateCustomer({
+        customerId: customer.id,
+        name,
+        phone,
+        notes
+      })
+
+      setMessage('تم حفظ بيانات الزبون')
+      setShowForm(false)
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveCurrentCustomer() {
+    const confirmed = window.confirm(
+      `هل تريد أرشفة الزبون: ${customer.name}؟\n\n` +
+      'سيختفي من البحث العادي، لكن أوراقه ودفعاته لن تُحذف.'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await archiveCustomer(customer.id)
+      await onArchived()
+    } catch (error) {
+      setMessage(error.message)
+      setSaving(false)
+    }
+  }
+
+  async function restoreCurrentCustomer() {
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await restoreCustomer(customer.id)
+      setMessage('تم إلغاء أرشفة الزبون')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="customer-edit-card">
+      <div className="customer-edit-header">
+        <div>
+          <h2>بيانات الزبون</h2>
+          <p>
+            تعديل الاسم أو الهاتف أو الملاحظات، أو أرشفة
+            الزبون.
+          </p>
+        </div>
+
+        <button
+          className="edit-customer-button"
+          onClick={() => setShowForm(!showForm)}
+          disabled={saving}
+        >
+          {showForm
+            ? 'إلغاء التعديل'
+            : 'تعديل بيانات الزبون'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          className="customer-edit-form"
+          onSubmit={saveCustomer}
+        >
+          <label>
+            اسم الزبون
+            <input
+              type="text"
+              value={name}
+              onChange={(event) =>
+                setName(event.target.value)
+              }
+              required
+            />
+          </label>
+
+          <label>
+            رقم الهاتف
+            <input
+              type="tel"
+              value={phone}
+              onChange={(event) =>
+                setPhone(event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            ملاحظات
+            <textarea
+              value={notes}
+              onChange={(event) =>
+                setNotes(event.target.value)
+              }
+              rows="3"
+            />
+          </label>
+
+          <button type="submit" disabled={saving}>
+            {saving
+              ? 'جارٍ الحفظ...'
+              : 'حفظ بيانات الزبون'}
+          </button>
+        </form>
+      )}
+
+      {customer.is_archived ? (
+        <button
+          className="restore-customer-button"
+          onClick={restoreCurrentCustomer}
+          disabled={saving}
+        >
+          {saving
+            ? 'جارٍ إلغاء الأرشفة...'
+            : 'إلغاء الأرشفة'}
+        </button>
+      ) : (
+        <button
+          className="archive-customer-button"
+          onClick={archiveCurrentCustomer}
+          disabled={saving}
+        >
+          {saving
+            ? 'جارٍ الأرشفة...'
+            : 'أرشفة الزبون'}
+        </button>
+      )}
+
+      {message && (
+        <p className="message">{message}</p>
+      )}
+    </section>
   )
 }
 
