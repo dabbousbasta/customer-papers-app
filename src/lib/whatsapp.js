@@ -44,8 +44,12 @@ function getStatusText(status) {
 
 export async function buildCustomerWhatsAppReport(
   customer,
-  papers
+  papers,
+  options = {}
 ) {
+  const includeImageLinks =
+    options.includeImageLinks === true
+
   const lines = [
     'كشف حساب',
     `الزبون: ${customer.name}`,
@@ -105,7 +109,7 @@ export async function buildCustomerWhatsAppReport(
         )
 
         if (payment.note) {
-          lines.push(`  ملاحظة الدفعة: ${payment.note}`)
+          lines.push(`ملاحظة الدفعة: ${payment.note}`)
         }
       }
     }
@@ -122,50 +126,50 @@ export async function buildCustomerWhatsAppReport(
       }`
     )
 
-    try {
-      const currentImageUrl =
-        await createPaperImageUrl(
-          paper.image_path,
-          86400
-        )
+    if (includeImageLinks && paper.image_path) {
+      try {
+        const currentImageUrl =
+          await createPaperImageUrl(
+            paper.image_path,
+            86400
+          )
 
-      lines.push('رابط الصورة الحالية:')
-      lines.push(currentImageUrl)
-    } catch {
-      lines.push('رابط الصورة الحالية: غير متاح')
-    }
+        lines.push('رابط الصورة الحالية:')
+        lines.push(currentImageUrl)
+      } catch {
+        lines.push('رابط الصورة الحالية: غير متاح')
+      }
 
-    try {
-      const history =
-        await getPaperImageHistory(paper.id)
+      try {
+        const history =
+          await getPaperImageHistory(paper.id)
 
-      if (history.length > 0) {
-        lines.push('صور الورقة ووصفها:')
+        if (history.length > 0) {
+          lines.push('سجل الصور:')
 
-        for (const image of history) {
-          try {
-            const imageUrl =
-              await createPaperImageUrl(
-                image.image_path,
-                86400
-              )
+          for (const image of history) {
+            try {
+              const imageUrl =
+                await createPaperImageUrl(
+                  image.image_path,
+                  86400
+                )
 
-            lines.push(
-              `- ${
+              const description =
                 image.description ||
                 image.note ||
                 'صورة بدون وصف'
-              }`
-            )
 
-            lines.push(imageUrl)
-          } catch {
-            lines.push('- صورة غير متاحة')
+              lines.push(`- ${description}`)
+              lines.push(imageUrl)
+            } catch {
+              lines.push('- صورة قديمة غير متاحة')
+            }
           }
         }
+      } catch {
+        lines.push('تعذر تحميل سجل الصور')
       }
-    } catch {
-      lines.push('تعذر تحميل سجل الصور')
     }
 
     lines.push('')
@@ -174,8 +178,16 @@ export async function buildCustomerWhatsAppReport(
   lines.push('الخلاصة النهائية')
   lines.push(`عدد الأوراق: ${paperNumber}`)
   lines.push(`إجمالي القيم: ${totalValues.toFixed(2)}`)
-  lines.push(`إجمالي الدفعات: ${totalPayments.toFixed(2)}`)
-  lines.push(`الرصيد النهائي: ${finalBalance.toFixed(2)}`)
+  lines.push(
+    `إجمالي دفعات الأوراق المفتوحة: ${totalPayments.toFixed(
+      2
+    )}`
+  )
+  lines.push(
+    `الرصيد النهائي المفتوح: ${finalBalance.toFixed(
+      2
+    )}`
+  )
 
   return lines.join('\n')
 }
@@ -184,5 +196,5 @@ export function openWhatsAppMessage(text) {
   const url =
     `https://wa.me/?text=${encodeURIComponent(text)}`
 
-  window.open(url, '_blank')
+  window.open(url, '_blank', 'noopener,noreferrer')
 }

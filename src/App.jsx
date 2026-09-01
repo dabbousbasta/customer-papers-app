@@ -119,6 +119,8 @@ function App() {
 function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] =
+    useState(false)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -155,20 +157,47 @@ function LoginPage() {
               onChange={(event) =>
                 setEmail(event.target.value)
               }
+              autoComplete="email"
               required
             />
           </label>
 
           <label>
             كلمة المرور
-            <input
-              type="password"
-              value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
-              }
-              required
-            />
+
+            <div className="password-input-wrap">
+              <input
+                type={
+                  showPassword ? 'text' : 'password'
+                }
+                value={password}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                autoComplete="current-password"
+                required
+              />
+
+              <button
+                type="button"
+                className="password-toggle-button"
+                onClick={() =>
+                  setShowPassword(!showPassword)
+                }
+                aria-label={
+                  showPassword
+                    ? 'إخفاء كلمة المرور'
+                    : 'إظهار كلمة المرور'
+                }
+                title={
+                  showPassword
+                    ? 'إخفاء كلمة المرور'
+                    : 'إظهار كلمة المرور'
+                }
+              >
+                {showPassword ? '◉' : '◌'}
+              </button>
+            </div>
           </label>
 
           <button type="submit" disabled={saving}>
@@ -262,11 +291,9 @@ function CustomerSelectPage({
 
       const parsed = JSON.parse(stored)
 
-      if (Array.isArray(parsed)) {
-        setRecentCustomers(parsed)
-      } else {
-        setRecentCustomers([])
-      }
+      setRecentCustomers(
+        Array.isArray(parsed) ? parsed : []
+      )
     } catch {
       setRecentCustomers([])
     }
@@ -351,7 +378,9 @@ function CustomerSelectPage({
               >
                 <button
                   className="recent-customer-main"
-                  onClick={() => openCustomer(customer)}
+                  onClick={() =>
+                    openCustomer(customer)
+                  }
                 >
                   <strong>{customer.name}</strong>
 
@@ -379,10 +408,10 @@ function CustomerSelectPage({
           type="search"
           placeholder="ابحث عن اسم الزبون..."
           value={search}
-          onChange={async (event) => {
+          onChange={(event) => {
             const value = event.target.value
             setSearch(value)
-            await loadCustomers(value)
+            loadCustomers(value)
           }}
         />
       </section>
@@ -669,6 +698,8 @@ function CustomerSummary({ customer }) {
 
 function CustomerPapers({ customer }) {
   const [papers, setPapers] = useState([])
+  const [thumbnailUrls, setThumbnailUrls] =
+    useState({})
   const [filter, setFilter] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [message, setMessage] = useState('')
@@ -685,8 +716,7 @@ function CustomerPapers({ customer }) {
     new Date().toISOString().slice(0, 10)
   )
   const [paperNote, setPaperNote] = useState('')
-  const [totalAmount, setTotalAmount] =
-    useState('')
+  const [totalAmount, setTotalAmount] = useState('')
 
   useEffect(() => {
     loadPapers()
@@ -699,7 +729,23 @@ function CustomerPapers({ customer }) {
         includeArchived: true
       })
 
-      setPapers(data)
+      setPapers(data || [])
+
+      const entries = await Promise.all(
+        (data || []).map(async (paper) => {
+          try {
+            const url = await createPaperImageUrl(
+              paper.image_path
+            )
+
+            return [paper.id, url]
+          } catch {
+            return [paper.id, null]
+          }
+        })
+      )
+
+      setThumbnailUrls(Object.fromEntries(entries))
     } catch (error) {
       setMessage(error.message)
     }
@@ -760,7 +806,7 @@ function CustomerPapers({ customer }) {
 
       setSelectedPaper(paper)
       setSelectedImage(imageUrl)
-      setImageHistory(history)
+      setImageHistory(history || [])
     } catch (error) {
       setMessage(error.message)
     }
@@ -777,17 +823,13 @@ function CustomerPapers({ customer }) {
       <div className="section-header">
         <div>
           <h2>أوراق {customer.name}</h2>
-          <p>
-            عدد النتائج: {visiblePapers.length}
-          </p>
+          <p>عدد النتائج: {visiblePapers.length}</p>
         </div>
 
         <button
           onClick={() => setShowForm(!showForm)}
         >
-          {showForm
-            ? 'إلغاء'
-            : 'إضافة ورقة'}
+          {showForm ? 'إلغاء' : 'إضافة ورقة'}
         </button>
       </div>
 
@@ -895,7 +937,7 @@ function CustomerPapers({ customer }) {
             const amountText =
               paper.total_amount === null
                 ? 'غير محسوبة'
-                : paper.total_amount
+                : Number(paper.total_amount).toFixed(2)
 
             const balanceText =
               balance === null
@@ -903,34 +945,43 @@ function CustomerPapers({ customer }) {
                 : balance.toFixed(2)
 
             return (
-              <article
-                className="paper-card"
+              <button
+                type="button"
+                className="paper-card clickable-paper-card"
                 key={paper.id}
+                onClick={() => openDetails(paper)}
               >
-                <div>
-                  <h3>{paper.paper_date}</h3>
-                  <p>القيمة: {amountText}</p>
+                {thumbnailUrls[paper.id] ? (
+                  <img
+                    className="paper-thumbnail"
+                    src={thumbnailUrls[paper.id]}
+                    alt={`صورة ورقة بتاريخ ${paper.paper_date}`}
+                  />
+                ) : (
+                  <span className="paper-thumbnail placeholder-thumbnail">
+                    لا توجد صورة
+                  </span>
+                )}
 
-                  <p>
+                <span className="paper-card-content">
+                  <strong className="paper-card-date">
+                    {paper.paper_date}
+                  </strong>
+
+                  <span>القيمة: {amountText}</span>
+
+                  <span>
                     الدفعات:{' '}
                     {getPaymentsTotal(paper).toFixed(2)}
-                  </p>
+                  </span>
 
-                  <p>الرصيد: {balanceText}</p>
+                  <span>الرصيد: {balanceText}</span>
 
-                  <p>
-                    الحالة:{' '}
-                    {getStatusText(paper.status)}
-                  </p>
-                </div>
-
-                <button
-                  className="details-button"
-                  onClick={() => openDetails(paper)}
-                >
-                  التفاصيل
-                </button>
-              </article>
+                  <span>
+                    الحالة: {getStatusText(paper.status)}
+                  </span>
+                </span>
+              </button>
             )
           })}
         </div>
@@ -975,7 +1026,7 @@ function CustomerPayments({ customer }) {
         includeArchived: true
       })
 
-      setPapers(data)
+      setPapers(data || [])
     } catch (error) {
       setMessage(error.message)
     }
@@ -1143,6 +1194,8 @@ function CustomerPayments({ customer }) {
 function CustomerReport({ customer }) {
   const [papers, setPapers] = useState([])
   const [message, setMessage] = useState('')
+  const [showWhatsAppOptions, setShowWhatsAppOptions] =
+    useState(false)
 
   useEffect(() => {
     loadPapers()
@@ -1155,13 +1208,13 @@ function CustomerReport({ customer }) {
         includeArchived: false
       })
 
-      setPapers(data)
+      setPapers(data || [])
     } catch (error) {
       setMessage(error.message)
     }
   }
 
-  async function shareReport() {
+  async function shareReport(includeImageLinks) {
     setMessage('جارٍ تجهيز التقرير...')
 
     try {
@@ -1172,11 +1225,19 @@ function CustomerReport({ customer }) {
       const text =
         await buildCustomerWhatsAppReport(
           customer,
-          openPapers
+          openPapers,
+          { includeImageLinks }
         )
 
       openWhatsAppMessage(text)
-      setMessage('تم تجهيز تقرير الأوراق المفتوحة')
+
+      setMessage(
+        includeImageLinks
+          ? 'تم تجهيز التقرير مع روابط الصور'
+          : 'تم تجهيز التقرير بدون روابط الصور'
+      )
+
+      setShowWhatsAppOptions(false)
     } catch (error) {
       setMessage(error.message)
     }
@@ -1216,12 +1277,36 @@ function CustomerReport({ customer }) {
           </p>
         </div>
 
-        <button
-          className="whatsapp-button"
-          onClick={shareReport}
-        >
-          إرسال WhatsApp
-        </button>
+        <div className="whatsapp-actions">
+          <button
+            className="whatsapp-button"
+            onClick={() =>
+              setShowWhatsAppOptions(
+                !showWhatsAppOptions
+              )
+            }
+          >
+            إرسال WhatsApp
+          </button>
+
+          {showWhatsAppOptions && (
+            <div className="whatsapp-options">
+              <button
+                className="whatsapp-without-links-button"
+                onClick={() => shareReport(false)}
+              >
+                إرسال بدون روابط الصور
+              </button>
+
+              <button
+                className="whatsapp-with-links-button"
+                onClick={() => shareReport(true)}
+              >
+                إرسال مع روابط الصور
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {message && (
@@ -1255,7 +1340,7 @@ function CustomerReport({ customer }) {
             const amountText =
               paper.total_amount === null
                 ? 'غير محسوبة'
-                : paper.total_amount
+                : Number(paper.total_amount).toFixed(2)
 
             const balanceText =
               balance === null
@@ -1319,17 +1404,14 @@ function PaperModal({
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
   )
-  const [paymentNote, setPaymentNote] =
-    useState('')
+  const [paymentNote, setPaymentNote] = useState('')
 
   const [newImageFile, setNewImageFile] =
     useState(null)
   const [newImageDescription, setNewImageDescription] =
     useState('')
 
-  const [archiveReason, setArchiveReason] =
-    useState('')
-
+  const [archiveReason, setArchiveReason] = useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -1445,11 +1527,7 @@ function PaperModal({
     setSaving(true)
 
     try {
-      await archivePaper(
-        paper.id,
-        archiveReason
-      )
-
+      await archivePaper(paper.id, archiveReason)
       setMessage('تمت أرشفة الورقة')
       await onSaved()
     } catch (error) {
@@ -1478,8 +1556,8 @@ function PaperModal({
   async function openHistoryImage(imagePath) {
     try {
       const url = await createPaperImageUrl(imagePath)
-      window.open(url, '_blank')
-    } catch (error) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
       setMessage('فشل فتح الصورة')
     }
   }
@@ -1492,7 +1570,7 @@ function PaperModal({
   const amountText =
     paper.total_amount === null
       ? 'غير محسوبة'
-      : paper.total_amount
+      : Number(paper.total_amount).toFixed(2)
 
   const balanceText =
     balance === null
@@ -1794,6 +1872,7 @@ function PaperModal({
                 </div>
 
                 <button
+                  type="button"
                   className="small-button"
                   onClick={() =>
                     openHistoryImage(image.image_path)
