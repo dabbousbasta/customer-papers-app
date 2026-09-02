@@ -4,6 +4,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams
 } from 'react-router-dom'
@@ -415,10 +416,10 @@ function CustomerSelectPage({
   ) {
     setLoading(true)
 
-    const { data, error } =
-      await getCustomers(searchText, {
-        archivedOnly
-      })
+    const { data, error } = await getCustomers(
+      searchText,
+      { archivedOnly }
+    )
 
     if (error) {
       setMessage(error.message)
@@ -495,6 +496,7 @@ function CustomerSelectPage({
     }
 
     saveRecentCustomer(customer)
+
     navigate(`/customer/${customer.id}/papers`)
   }
 
@@ -590,46 +592,66 @@ function CustomerSelectPage({
         title="اختيار الزبون"
       />
 
-      <section className="customer-start-card">
-        <div>
-          <h2>
-            {showArchived
-              ? 'أرشيف الزبائن'
-              : 'اختر الزبون للبدء'}
-          </h2>
+      <section className="compact-customer-toolbar">
+        <input
+          type="search"
+          placeholder={
+            showArchived
+              ? 'ابحث عن زبون مؤرشف...'
+              : 'ابحث عن اسم الزبون...'
+          }
+          value={search}
+          onChange={(event) => {
+            const value = event.target.value
 
-          <p>
-            {showArchived
-              ? 'تظهر هنا الزبائن المؤرشفون فقط.'
-              : 'بعد الاختيار ستظهر كل أوراقه ودفعاته وتقاريره.'}
-          </p>
-        </div>
+            setSearch(value)
+            loadCustomers(value, showArchived)
+          }}
+          aria-label={
+            showArchived
+              ? 'البحث عن زبون مؤرشف'
+              : 'البحث عن زبون'
+          }
+        />
 
-        <div className="customer-start-actions">
-          {!showArchived && (
-            <button
-              className="new-customer-button"
-              onClick={() =>
-                setShowNewCustomerForm(
-                  !showNewCustomerForm
-                )
-              }
-            >
-              {showNewCustomerForm
-                ? 'إلغاء إضافة زبون'
-                : 'إضافة زبون جديد'}
-            </button>
-          )}
+        <button
+          type="button"
+          className="compact-icon-button add-customer-icon-button"
+          onClick={() =>
+            setShowNewCustomerForm(!showNewCustomerForm)
+          }
+          disabled={showArchived}
+          aria-label={
+            showNewCustomerForm
+              ? 'إلغاء إضافة زبون جديد'
+              : 'إضافة زبون جديد'
+          }
+          title={
+            showNewCustomerForm
+              ? 'إلغاء إضافة زبون جديد'
+              : 'إضافة زبون جديد'
+          }
+        >
+          {showNewCustomerForm ? '×' : '+'}
+        </button>
 
-          <button
-            className="archive-customer-list-button"
-            onClick={changeArchivedView}
-          >
-            {showArchived
+        <button
+          type="button"
+          className="compact-icon-button archive-icon-button"
+          onClick={changeArchivedView}
+          aria-label={
+            showArchived
               ? 'العودة إلى الزبائن النشطين'
-              : 'أرشيف الزبائن'}
-          </button>
-        </div>
+              : 'عرض أرشيف الزبائن'
+          }
+          title={
+            showArchived
+              ? 'العودة إلى الزبائن النشطين'
+              : 'أرشيف الزبائن'
+          }
+        >
+          {showArchived ? '↩' : '🗃'}
+        </button>
       </section>
 
       {showNewCustomerForm && !showArchived && (
@@ -693,135 +715,144 @@ function CustomerSelectPage({
         </section>
       )}
 
-      {!showArchived &&
-        recentCustomers.length > 0 && (
-          <section className="recent-customers-section">
-            <div className="section-header">
-              <div>
-                <h2>آخر الزبائن المستخدمين</h2>
-                <p>
-                  آخر 8 زبائن تم فتحهم على هذا الجهاز.
-                </p>
-              </div>
-
-              <button
-                className="clear-recent-button"
-                onClick={clearRecentCustomers}
-              >
-                مسح القائمة
-              </button>
-            </div>
-
-            <div className="recent-customers-list">
-              {recentCustomers.map((customer) => (
-                <article
-                  className="recent-customer-card"
-                  key={customer.id}
-                >
-                  <button
-                    className="recent-customer-main"
-                    onClick={() =>
-                      openCustomer(customer)
-                    }
-                  >
-                    <strong>{customer.name}</strong>
-
-                    {customer.phone && (
-                      <small>{customer.phone}</small>
-                    )}
-                  </button>
-
-                  <button
-                    className="recent-paper-button"
-                    onClick={() =>
-                      openQuickPaper(customer)
-                    }
-                  >
-                    ورقة جديدة
-                  </button>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
-
-      <section className="search-box">
-        <input
-          type="search"
-          placeholder={
-            showArchived
-              ? 'ابحث عن زبون مؤرشف...'
-              : 'ابحث عن اسم الزبون...'
-          }
-          value={search}
-          onChange={(event) => {
-            const value = event.target.value
-
-            setSearch(value)
-            loadCustomers(value, showArchived)
-          }}
-        />
-      </section>
-
       {message && (
         <p className="message error">{message}</p>
       )}
 
-      {loading ? (
-        <div className="empty-card">
-          جارٍ تحميل الزبائن...
-        </div>
-      ) : customers.length === 0 ? (
-        <div className="empty-card">
-          {showArchived
-            ? 'لا يوجد زبائن مؤرشفون'
-            : 'لا يوجد زبائن نشطون'}
-        </div>
-      ) : (
-        <section className="customer-picker-list">
-          {customers.map((customer) => (
-            <article
-              className="customer-picker-card"
-              key={customer.id}
+      {!showArchived && recentCustomers.length > 0 && (
+        <section className="compact-customer-section">
+          <div className="compact-list-heading">
+            <h2>آخر الزبائن</h2>
+
+            <button
+              type="button"
+              className="clear-recent-button"
+              onClick={clearRecentCustomers}
             >
-              <button
-                className="customer-picker-item"
-                onClick={() => openCustomer(customer)}
+              مسح
+            </button>
+          </div>
+
+          <div className="compact-customer-list">
+            {recentCustomers.map((customer) => (
+              <article
+                className="compact-customer-row"
+                key={customer.id}
               >
-                <strong>{customer.name}</strong>
-
-                {customer.phone && (
-                  <small>{customer.phone}</small>
-                )}
-              </button>
-
-              {showArchived ? (
                 <button
-                  className="restore-customer-button"
-                  onClick={() =>
-                    restoreArchivedCustomer(customer)
-                  }
+                  type="button"
+                  className="compact-customer-name"
+                  onClick={() => openCustomer(customer)}
                 >
-                  إلغاء الأرشفة
+                  <strong>{customer.name}</strong>
+
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
                 </button>
-              ) : (
+
                 <button
-                  className="quick-paper-button"
-                  onClick={() =>
-                    openQuickPaper(customer)
-                  }
+                  type="button"
+                  className="compact-paper-add-button"
+                  onClick={() => openQuickPaper(customer)}
+                  aria-label={`إضافة ورقة للزبون ${customer.name}`}
+                  title={`إضافة ورقة للزبون ${customer.name}`}
                 >
-                  ورقة جديدة
+                  +
                 </button>
-              )}
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </section>
       )}
+
+      <section className="compact-customer-section">
+        <div className="compact-list-heading">
+          <h2>
+            {showArchived
+              ? 'الزبائن المؤرشفون'
+              : search.trim()
+                ? 'نتائج البحث'
+                : 'كل الزبائن'}
+          </h2>
+        </div>
+
+        {loading ? (
+          <div className="empty-card">
+            جارٍ تحميل الزبائن...
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="empty-card">
+            {showArchived
+              ? 'لا يوجد زبائن مؤرشفون'
+              : search.trim()
+                ? 'لا توجد نتائج مطابقة'
+                : 'لا يوجد زبائن'}
+          </div>
+        ) : (
+          <div className="compact-customer-list">
+            {customers.map((customer) => (
+              <article
+                className="compact-customer-row"
+                key={customer.id}
+              >
+                <button
+                  type="button"
+                  className="compact-customer-name"
+                  onClick={() => openCustomer(customer)}
+                  disabled={customer.is_archived}
+                  title={
+                    customer.is_archived
+                      ? 'الزبون مؤرشف، ألغِ الأرشفة أولًا'
+                      : `فتح أوراق ${customer.name}`
+                  }
+                >
+                  <strong>{customer.name}</strong>
+
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
+                </button>
+
+                {showArchived ? (
+                  <button
+                    type="button"
+                    className="compact-restore-button"
+                    onClick={() =>
+                      restoreArchivedCustomer(customer)
+                    }
+                    aria-label={
+                      `إلغاء أرشفة الزبون ${customer.name}`
+                    }
+                    title={
+                      `إلغاء أرشفة الزبون ${customer.name}`
+                    }
+                  >
+                    ↺
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="compact-paper-add-button"
+                    onClick={() => openQuickPaper(customer)}
+                    aria-label={
+                      `إضافة ورقة للزبون ${customer.name}`
+                    }
+                    title={
+                      `إضافة ورقة للزبون ${customer.name}`
+                    }
+                  >
+                    +
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
-
 function CustomerPage({
   session,
   signOut
@@ -1288,14 +1319,15 @@ function CustomerSummary({ customer }) {
 }
 function CustomerPapers({ customer }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [papers, setPapers] = useState([])
   const [thumbnailUrls, setThumbnailUrls] =
     useState({})
   const [filter, setFilter] = useState('all')
-  const [showForm, setShowForm] = useState(
-    new URLSearchParams(
-      window.location.search
-    ).get('addPaper') === '1'
+   const [showForm, setShowForm] = useState(
+    new URLSearchParams(location.search).get(
+      'addPaper'
+    ) === '1'
   )
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1342,15 +1374,12 @@ function CustomerPapers({ customer }) {
     loadPapers()
   }, [customer.id])
 
-  useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search
-    )
+    useEffect(() => {
+    const params = new URLSearchParams(location.search)
 
-    if (params.get('addPaper') === '1') {
-      setShowForm(true)
-    }
-  }, [customer.id])
+    setShowForm(params.get('addPaper') === '1')
+  }, [location.search])
+
 
   async function loadPapers() {
     try {
@@ -1381,12 +1410,10 @@ function CustomerPapers({ customer }) {
     }
   }
 
-  function closePaperForm() {
+   function closePaperForm() {
     setShowForm(false)
 
-    const params = new URLSearchParams(
-      window.location.search
-    )
+    const params = new URLSearchParams(location.search)
 
     if (params.get('addPaper') === '1') {
       navigate(
