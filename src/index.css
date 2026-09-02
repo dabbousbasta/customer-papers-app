@@ -190,9 +190,22 @@ label select {
   box-shadow: 0 14px 32px rgb(15 81 130 / 22%);
 }
 
+.app-brand-link {
+  display: inline-block;
+  margin-bottom: 5px;
+  color: white;
+  font-size: 1.45rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.app-brand-link:hover {
+  color: #dbeafe;
+}
+
 .topbar h1 {
   margin: 0;
-  font-size: clamp(1.25rem, 3vw, 1.8rem);
+  font-size: clamp(1.05rem, 3vw, 1.45rem);
 }
 
 .topbar p {
@@ -255,6 +268,16 @@ label select {
   color: #64748b;
 }
 
+.customer-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.new-customer-button {
+  background: #0f766e;
+}
+
 .quick-paper-button,
 .recent-paper-button {
   background: #0f766e;
@@ -264,8 +287,13 @@ label select {
   background: #7c3aed;
 }
 
+.archive-customer-list-button {
+  background: #7c3aed;
+}
+
 .customer-picker,
-.customer-section {
+.customer-section,
+.customer-summary-fixed {
   margin-top: 24px;
 }
 
@@ -395,6 +423,26 @@ label select {
   background: #eff6ff;
 }
 
+.compact-customer-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: visible;
+}
+
+.compact-customer-tabs a {
+  min-width: 0;
+  color: white;
+  background: #2563eb;
+}
+
+.compact-customer-tabs a:nth-child(2) {
+  background: #0f766e;
+}
+
+.compact-customer-tabs a:nth-child(3) {
+  background: #7c3aed;
+}
+
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -442,19 +490,61 @@ label select {
   font-weight: 600;
 }
 
-.customer-summary-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 20px;
+.customer-edit-card {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #e4eaf1;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 6%);
 }
 
-.primary-link {
+.customer-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.customer-edit-header h2 {
+  margin: 0;
+  color: #0f3d68;
+  font-size: 1.2rem;
+}
+
+.customer-edit-header p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.customer-edit-form {
+  max-width: 760px;
+  margin-top: 15px;
+  padding: 18px;
+  border: 1px solid #e1e8f0;
+  border-radius: 15px;
+  background: #f8fafc;
+}
+
+.edit-customer-button {
   background: #2563eb;
 }
 
-.secondary-link {
-  background: #7c3aed;
+.archive-customer-button {
+  width: 100%;
+  margin-top: 16px;
+  background: #b42318;
+}
+
+.restore-customer-button {
+  width: 100%;
+  margin-top: 10px;
+  background: #15803d;
+}
+
+.customer-picker-card .restore-customer-button {
+  margin-top: 0;
 }
 
 .section-header {
@@ -500,6 +590,25 @@ label select {
 
 .form-card form {
   max-width: 760px;
+}
+
+.new-customer-form-card {
+  border-color: #bde6dd;
+  background: #f0fdf9;
+}
+
+.form-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.form-close-button {
+  min-height: 36px;
+  padding: 6px 13px;
+  color: #334155;
+  background: #e2e8f0;
 }
 
 .form-actions {
@@ -574,10 +683,7 @@ label select {
 
 .clickable-paper-card {
   width: 100%;
-  min-height: 132px;
-  justify-content: flex-start;
-  color: #1e293b;
-  text-align: right;
+  min-height: 148px;
   cursor: pointer;
   transition:
     transform 0.16s ease,
@@ -585,12 +691,10 @@ label select {
     border-color 0.16s ease;
 }
 
-.clickable-paper-card:hover,
-.clickable-paper-card:focus-visible {
+.clickable-paper-card:hover {
   transform: translateY(-2px);
   border-color: #60a5fa;
   box-shadow: 0 12px 25px rgb(37 99 235 / 12%);
-  outline: none;
 }
 
 .paper-thumbnail {
@@ -616,17 +720,101 @@ label select {
 
 .paper-card-content {
   display: flex;
+  min-width: 150px;
   flex: 1;
   flex-direction: column;
   gap: 4px;
+}
+
+.paper-card-content p {
+  margin: 0;
   color: #64748b;
   font-size: 0.88rem;
 }
 
 .paper-card-date {
-  margin-bottom: 3px;
+  margin: 0 0 4px;
   color: #0f3d68;
   font-size: 1.05rem;
+}
+
+.paper-shortcuts {
+  display: grid;
+  min-width: 225px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+}
+
+.paper-shortcuts button {
+  min-height: 36px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-size: 0.77rem;
+}
+
+.shortcut-edit {
+  background: #2563eb;
+}
+
+.shortcut-payment {
+  background: #0f766e;
+}
+
+.shortcut-image {
+  background: #7c3aed;
+}
+
+.shortcut-close {
+  background: #d97706;
+}
+
+.shortcut-reopen {
+  background: #0891b2;
+}
+
+.shortcut-archive {
+  background: #b42318;
+}
+
+.archived-paper-note {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 10px;
+  color: #92400e;
+  background: #fef3c7;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.quick-action-modal {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  padding: 30px;
+  border-radius: 22px;
+  background: white;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 28%);
+}
+
+.quick-action-modal h2 {
+  margin: 0 0 14px;
+  padding-left: 90px;
+  color: #0f3d68;
+  font-size: 1.35rem;
+}
+
+.quick-action-paper-info {
+  margin: 0 0 18px;
+  padding: 10px;
+  border-radius: 10px;
+  color: #1e40af;
+  background: #dbeafe;
+  font-weight: 700;
 }
 
 .payment-row div {
@@ -874,6 +1062,16 @@ label select {
   .recent-customers-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .paper-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .paper-shortcuts {
+    width: 100%;
+    grid-template-columns: repeat(5, 1fr);
+  }
 }
 
 @media (max-width: 650px) {
@@ -890,13 +1088,16 @@ label select {
     padding: 20px;
   }
 
-  .topbar-actions {
+  .topbar-actions,
+  .customer-start-actions {
     flex-direction: column;
   }
 
   .topbar-link,
   .secondary-button,
-  .change-customer-button {
+  .change-customer-button,
+  .new-customer-button,
+  .archive-customer-list-button {
     width: 100%;
     text-align: center;
   }
@@ -920,13 +1121,18 @@ label select {
     font-size: 1.5rem;
   }
 
-  .customer-tabs {
-    align-items: stretch;
-    flex-direction: column;
+  .compact-customer-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
   }
 
-  .customer-tabs a {
-    flex: none;
+  .compact-customer-tabs a {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    font-size: 0.88rem;
   }
 
   .section-header {
@@ -939,14 +1145,13 @@ label select {
     width: 100%;
   }
 
-  .customer-summary-actions {
-    display: grid;
-    grid-template-columns: 1fr;
+  .customer-edit-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .customer-summary-actions a {
+  .edit-customer-button {
     width: 100%;
-    text-align: center;
   }
 
   .paper-card,
@@ -970,6 +1175,20 @@ label select {
     width: 100%;
   }
 
+  .paper-shortcuts {
+    width: 100%;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .paper-shortcuts button {
+    min-height: 42px;
+    font-size: 0.82rem;
+  }
+
+  .archived-paper-note {
+    grid-column: 1 / -1;
+  }
+
   .filter-tabs {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -979,11 +1198,12 @@ label select {
     width: 100%;
   }
 
-  .form-actions {
+  .form-card-title-row {
+    align-items: stretch;
     flex-direction: column;
   }
 
-  .form-actions button {
+  .form-close-button {
     width: 100%;
   }
 
@@ -1011,13 +1231,15 @@ label select {
     padding: 10px;
   }
 
-  .paper-details-modal {
+  .paper-details-modal,
+  .quick-action-modal {
     max-height: calc(100vh - 20px);
     padding: 22px 17px;
     border-radius: 18px;
   }
 
-  .paper-details-modal h2 {
+  .paper-details-modal h2,
+  .quick-action-modal h2 {
     padding-left: 75px;
     font-size: 1.2rem;
   }
@@ -1043,5 +1265,9 @@ label select {
 
   .auth-card {
     padding: 24px 18px;
+  }
+
+  .compact-customer-tabs a {
+    font-size: 0.76rem;
   }
 }

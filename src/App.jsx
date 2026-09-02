@@ -10,6 +10,7 @@ import {
 import { supabase } from './lib/supabase'
 import {
   archiveCustomer,
+  createCustomer,
   getCustomers,
   restoreCustomer,
   updateCustomer
@@ -150,8 +151,8 @@ function LoginPage() {
   return (
     <main dir="rtl" className="auth-page">
       <section className="auth-card">
-        <h1>نظام أوراق الزبائن</h1>
-        <p>تسجيل الدخول</p>
+        <h1>دبوس البسطة</h1>
+        <p>نظام أوراق الزبائن</p>
 
         <form onSubmit={login}>
           <label>
@@ -228,6 +229,10 @@ function Header({
   return (
     <header className="topbar">
       <div>
+        <Link to="/" className="app-brand-link">
+          دبوس البسطة
+        </Link>
+
         <h1>{title}</h1>
         <p>{session.user.email}</p>
       </div>
@@ -263,6 +268,16 @@ function CustomerSelectPage({
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [showArchived, setShowArchived] =
+    useState(false)
+  const [showNewCustomerForm, setShowNewCustomerForm] =
+    useState(false)
+  const [newCustomerName, setNewCustomerName] =
+    useState('')
+  const [newCustomerPhone, setNewCustomerPhone] =
+    useState('')
+  const [newCustomerNotes, setNewCustomerNotes] =
+    useState('')
+  const [savingCustomer, setSavingCustomer] =
     useState(false)
 
   useEffect(() => {
@@ -356,7 +371,7 @@ function CustomerSelectPage({
     }
 
     saveRecentCustomer(customer)
-    navigate(`/customer/${customer.id}`)
+    navigate(`/customer/${customer.id}/papers`)
   }
 
   function openQuickPaper(customer) {
@@ -368,12 +383,51 @@ function CustomerSelectPage({
     }
 
     saveRecentCustomer(customer)
-    navigate(`/customer/${customer.id}/papers`)
+
+    navigate(
+      `/customer/${customer.id}/papers?addPaper=1`
+    )
   }
 
   function clearRecentCustomers() {
     localStorage.removeItem(RECENT_CUSTOMERS_KEY)
     setRecentCustomers([])
+  }
+
+  function cancelNewCustomer() {
+    setShowNewCustomerForm(false)
+    setNewCustomerName('')
+    setNewCustomerPhone('')
+    setNewCustomerNotes('')
+  }
+
+  async function saveNewCustomer(event) {
+    event.preventDefault()
+
+    if (!newCustomerName.trim()) {
+      setMessage('اسم الزبون مطلوب')
+      return
+    }
+
+    setSavingCustomer(true)
+    setMessage('')
+
+    try {
+      const customer = await createCustomer({
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        notes: newCustomerNotes
+      })
+
+      saveRecentCustomer(customer)
+      cancelNewCustomer()
+
+      navigate(`/customer/${customer.id}/papers`)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSavingCustomer(false)
+    }
   }
 
   async function changeArchivedView() {
@@ -382,6 +436,7 @@ function CustomerSelectPage({
     setShowArchived(nextValue)
     setSearch('')
     setMessage('')
+    cancelNewCustomer()
 
     await loadCustomers('', nextValue)
   }
@@ -426,15 +481,93 @@ function CustomerSelectPage({
           </p>
         </div>
 
-        <button
-          className="archive-customer-list-button"
-          onClick={changeArchivedView}
-        >
-          {showArchived
-            ? 'العودة إلى الزبائن النشطين'
-            : 'أرشيف الزبائن'}
-        </button>
+        <div className="customer-start-actions">
+          {!showArchived && (
+            <button
+              className="new-customer-button"
+              onClick={() =>
+                setShowNewCustomerForm(
+                  !showNewCustomerForm
+                )
+              }
+            >
+              {showNewCustomerForm
+                ? 'إلغاء إضافة زبون'
+                : 'إضافة زبون جديد'}
+            </button>
+          )}
+
+          <button
+            className="archive-customer-list-button"
+            onClick={changeArchivedView}
+          >
+            {showArchived
+              ? 'العودة إلى الزبائن النشطين'
+              : 'أرشيف الزبائن'}
+          </button>
+        </div>
       </section>
+
+      {showNewCustomerForm && !showArchived && (
+        <section className="form-card new-customer-form-card">
+          <div className="form-card-title-row">
+            <h2>إضافة زبون جديد</h2>
+
+            <button
+              type="button"
+              className="form-close-button"
+              onClick={cancelNewCustomer}
+            >
+              إغلاق
+            </button>
+          </div>
+
+          <form onSubmit={saveNewCustomer}>
+            <label>
+              اسم الزبون
+              <input
+                type="text"
+                value={newCustomerName}
+                onChange={(event) =>
+                  setNewCustomerName(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              رقم الهاتف
+              <input
+                type="tel"
+                value={newCustomerPhone}
+                onChange={(event) =>
+                  setNewCustomerPhone(event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              ملاحظات
+              <textarea
+                value={newCustomerNotes}
+                onChange={(event) =>
+                  setNewCustomerNotes(event.target.value)
+                }
+                rows="3"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={savingCustomer}
+            >
+              {savingCustomer
+                ? 'جارٍ حفظ الزبون...'
+                : 'حفظ الزبون وفتح أوراقه'}
+            </button>
+          </form>
+        </section>
+      )}
 
       {!showArchived &&
         recentCustomers.length > 0 && (
@@ -554,7 +687,7 @@ function CustomerSelectPage({
                     openQuickPaper(customer)
                   }
                 >
-                  إضافة ورقة
+                  ورقة جديدة
                 </button>
               )}
             </article>
@@ -705,11 +838,9 @@ function CustomerPage({
         onArchived={handleCustomerArchived}
       />
 
-      <nav className="customer-tabs">
-        <Link to={`/customer/${customerId}`}>
-          الملخص
-        </Link>
+      <CustomerSummary customer={customer} />
 
+      <nav className="customer-tabs compact-customer-tabs">
         <Link
           to={`/customer/${customerId}/papers`}
         >
@@ -732,9 +863,7 @@ function CustomerPage({
       <Routes>
         <Route
           index
-          element={
-            <CustomerSummary customer={customer} />
-          }
+          element={<Navigate to="papers" replace />}
         />
 
         <Route
@@ -963,7 +1092,7 @@ function CustomerSummary({ customer }) {
         includeArchived: true
       })
 
-      setPapers(data)
+      setPapers(data || [])
     } finally {
       setLoading(false)
     }
@@ -1002,7 +1131,7 @@ function CustomerSummary({ customer }) {
   )
 
   return (
-    <section className="customer-section">
+    <section className="customer-summary-fixed">
       <div className="summary-cards">
         <article className="summary-card">
           <span>كل الأوراق</span>
@@ -1030,32 +1159,21 @@ function CustomerSummary({ customer }) {
       <p className="summary-note">
         الملخص المالي يحسب الأوراق المفتوحة فقط.
       </p>
-
-      <div className="customer-summary-actions">
-        <Link
-          className="primary-link"
-          to={`/customer/${customer.id}/papers`}
-        >
-          أوراق الزبون
-        </Link>
-
-        <Link
-          className="secondary-link"
-          to={`/customer/${customer.id}/report`}
-        >
-          التقرير
-        </Link>
-      </div>
     </section>
   )
 }
 
 function CustomerPapers({ customer }) {
+  const navigate = useNavigate()
   const [papers, setPapers] = useState([])
   const [thumbnailUrls, setThumbnailUrls] =
     useState({})
   const [filter, setFilter] = useState('all')
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(
+    new URLSearchParams(
+      window.location.search
+    ).get('addPaper') === '1'
+  )
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -1072,9 +1190,47 @@ function CustomerPapers({ customer }) {
   const [paperNote, setPaperNote] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
 
+  const [quickAction, setQuickAction] = useState(null)
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickPaymentDate, setQuickPaymentDate] =
+    useState(new Date().toISOString().slice(0, 10))
+  const [quickPaymentNote, setQuickPaymentNote] =
+    useState('')
+  const [quickImageFile, setQuickImageFile] =
+    useState(null)
+  const [quickImageDescription, setQuickImageDescription] =
+    useState('')
+  const [quickArchiveReason, setQuickArchiveReason] =
+    useState('')
+
   useEffect(() => {
     loadPapers()
   }, [customer.id])
+
+  useEffect(() => {
+    const params = new URLSearchParams(
+      window.location.search
+    )
+
+    if (params.get('addPaper') === '1') {
+      setShowForm(true)
+    }
+  }, [customer.id])
+
+  function closePaperForm() {
+    setShowForm(false)
+
+    const params = new URLSearchParams(
+      window.location.search
+    )
+
+    if (params.get('addPaper') === '1') {
+      navigate(
+        `/customer/${customer.id}/papers`,
+        { replace: true }
+      )
+    }
+  }
 
   async function loadPapers() {
     try {
@@ -1103,6 +1259,18 @@ function CustomerPapers({ customer }) {
     } catch (error) {
       setMessage(error.message)
     }
+  }
+
+  function resetQuickAction() {
+    setQuickAction(null)
+    setQuickAmount('')
+    setQuickPaymentDate(
+      new Date().toISOString().slice(0, 10)
+    )
+    setQuickPaymentNote('')
+    setQuickImageFile(null)
+    setQuickImageDescription('')
+    setQuickArchiveReason('')
   }
 
   async function savePaper(event) {
@@ -1138,7 +1306,7 @@ function CustomerPapers({ customer }) {
       setPaperDate(
         new Date().toISOString().slice(0, 10)
       )
-      setShowForm(false)
+      closePaperForm()
       setMessage('تمت إضافة الورقة')
       await loadPapers()
     } catch (error) {
@@ -1166,6 +1334,198 @@ function CustomerPapers({ customer }) {
     }
   }
 
+  function openQuickAction(event, type, paper) {
+    event.stopPropagation()
+
+    setMessage('')
+    setQuickAction({
+      type,
+      paper
+    })
+
+    if (type === 'edit') {
+      setQuickAmount(
+        paper.total_amount === null
+          ? ''
+          : String(paper.total_amount)
+      )
+    }
+
+    if (type === 'payment') {
+      setQuickPaymentDate(
+        new Date().toISOString().slice(0, 10)
+      )
+    }
+  }
+
+  async function quickClosePaper(event, paper) {
+    event.stopPropagation()
+
+    const confirmed = window.confirm(
+      `هل تريد إغلاق الورقة بتاريخ ${paper.paper_date}؟`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await closePaper(paper.id)
+      setMessage('تم إغلاق الورقة')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function quickReopenPaper(event, paper) {
+    event.stopPropagation()
+
+    const confirmed = window.confirm(
+      `هل تريد إعادة فتح الورقة بتاريخ ${paper.paper_date}؟`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await reopenPaper(paper.id)
+      setMessage('تمت إعادة فتح الورقة')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickEdit(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await updatePaperAmount(
+        quickAction.paper.id,
+        quickAmount
+      )
+
+      setMessage('تم حفظ قيمة الورقة')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickPayment(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await createPayment({
+        paperId: quickAction.paper.id,
+        amount: quickAmount,
+        paymentDate: quickPaymentDate,
+        note: quickPaymentNote
+      })
+
+      setMessage('تمت إضافة الدفعة')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickImage(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper || !quickImageFile) {
+      setMessage('اختر الصورة الجديدة')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ رفع الصورة الجديدة...')
+
+    try {
+      const imagePath = await uploadPaperImage(
+        quickImageFile,
+        quickAction.paper.id
+      )
+
+      await savePaperImageHistory({
+        paperId: quickAction.paper.id,
+        imagePath,
+        description: quickImageDescription
+      })
+
+      await updatePaperImagePath(
+        quickAction.paper.id,
+        imagePath
+      )
+
+      setMessage('تم استبدال الصورة وحفظ القديمة')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickArchive(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await archivePaper(
+        quickAction.paper.id,
+        quickArchiveReason
+      )
+
+      setMessage('تمت أرشفة الورقة')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const visiblePapers = papers.filter((paper) => {
     return filter === 'all'
       ? true
@@ -1181,9 +1541,11 @@ function CustomerPapers({ customer }) {
         </div>
 
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(true)
+          }}
         >
-          {showForm ? 'إلغاء' : 'إضافة ورقة'}
+          إضافة ورقة
         </button>
       </div>
 
@@ -1210,7 +1572,17 @@ function CustomerPapers({ customer }) {
 
       {showForm && (
         <section className="form-card">
-          <h2>إضافة ورقة للزبون</h2>
+          <div className="form-card-title-row">
+            <h2>إضافة ورقة للزبون</h2>
+
+            <button
+              type="button"
+              className="form-close-button"
+              onClick={closePaperForm}
+            >
+              إغلاق
+            </button>
+          </div>
 
           <form onSubmit={savePaper}>
             <label>
@@ -1272,6 +1644,30 @@ function CustomerPapers({ customer }) {
         </section>
       )}
 
+      {quickAction && (
+        <QuickPaperActionModal
+          action={quickAction}
+          amount={quickAmount}
+          paymentDate={quickPaymentDate}
+          paymentNote={quickPaymentNote}
+          imageFile={quickImageFile}
+          imageDescription={quickImageDescription}
+          archiveReason={quickArchiveReason}
+          saving={saving}
+          setAmount={setQuickAmount}
+          setPaymentDate={setQuickPaymentDate}
+          setPaymentNote={setQuickPaymentNote}
+          setImageFile={setQuickImageFile}
+          setImageDescription={setQuickImageDescription}
+          setArchiveReason={setQuickArchiveReason}
+          onClose={resetQuickAction}
+          onSaveEdit={saveQuickEdit}
+          onSavePayment={saveQuickPayment}
+          onSaveImage={saveQuickImage}
+          onSaveArchive={saveQuickArchive}
+        />
+      )}
+
       {message && (
         <p className="message error">{message}</p>
       )}
@@ -1299,8 +1695,7 @@ function CustomerPapers({ customer }) {
                 : balance.toFixed(2)
 
             return (
-              <button
-                type="button"
+              <article
                 className="paper-card clickable-paper-card"
                 key={paper.id}
                 onClick={() => openDetails(paper)}
@@ -1312,30 +1707,127 @@ function CustomerPapers({ customer }) {
                     alt={`صورة ورقة بتاريخ ${paper.paper_date}`}
                   />
                 ) : (
-                  <span className="paper-thumbnail placeholder-thumbnail">
+                  <div className="paper-thumbnail placeholder-thumbnail">
                     لا توجد صورة
-                  </span>
+                  </div>
                 )}
 
-                <span className="paper-card-content">
-                  <strong className="paper-card-date">
+                <div className="paper-card-content">
+                  <h3 className="paper-card-date">
                     {paper.paper_date}
-                  </strong>
+                  </h3>
 
-                  <span>القيمة: {amountText}</span>
+                  <p>القيمة: {amountText}</p>
 
-                  <span>
+                  <p>
                     الدفعات:{' '}
                     {getPaymentsTotal(paper).toFixed(2)}
-                  </span>
+                  </p>
 
-                  <span>الرصيد: {balanceText}</span>
+                  <p>الرصيد: {balanceText}</p>
 
-                  <span>
+                  <p>
                     الحالة: {getStatusText(paper.status)}
-                  </span>
-                </span>
-              </button>
+                  </p>
+                </div>
+
+                <div
+                  className="paper-shortcuts"
+                  onClick={(event) =>
+                    event.stopPropagation()
+                  }
+                >
+                  {paper.status !== 'archived' && (
+                    <>
+                      <button
+                        type="button"
+                        className="shortcut-edit"
+                        onClick={(event) =>
+                          openQuickAction(
+                            event,
+                            'edit',
+                            paper
+                          )
+                        }
+                      >
+                        تعديل
+                      </button>
+
+                      <button
+                        type="button"
+                        className="shortcut-payment"
+                        onClick={(event) =>
+                          openQuickAction(
+                            event,
+                            'payment',
+                            paper
+                          )
+                        }
+                      >
+                        دفعة
+                      </button>
+
+                      <button
+                        type="button"
+                        className="shortcut-image"
+                        onClick={(event) =>
+                          openQuickAction(
+                            event,
+                            'image',
+                            paper
+                          )
+                        }
+                      >
+                        استبدال
+                      </button>
+
+                      {paper.status === 'open' ? (
+                        <button
+                          type="button"
+                          className="shortcut-close"
+                          onClick={(event) =>
+                            quickClosePaper(event, paper)
+                          }
+                          disabled={saving}
+                        >
+                          إغلاق
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="shortcut-reopen"
+                          onClick={(event) =>
+                            quickReopenPaper(event, paper)
+                          }
+                          disabled={saving}
+                        >
+                          فتح
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="shortcut-archive"
+                        onClick={(event) =>
+                          openQuickAction(
+                            event,
+                            'archive',
+                            paper
+                          )
+                        }
+                      >
+                        أرشفة
+                      </button>
+                    </>
+                  )}
+
+                  {paper.status === 'archived' && (
+                    <span className="archived-paper-note">
+                      افتح الورقة لإلغاء الأرشفة
+                    </span>
+                  )}
+                </div>
+              </article>
             )
           })}
         </div>
@@ -1360,6 +1852,185 @@ function CustomerPapers({ customer }) {
         />
       )}
     </section>
+  )
+}
+
+function QuickPaperActionModal({
+  action,
+  amount,
+  paymentDate,
+  paymentNote,
+  imageFile,
+  imageDescription,
+  archiveReason,
+  saving,
+  setAmount,
+  setPaymentDate,
+  setPaymentNote,
+  setImageFile,
+  setImageDescription,
+  setArchiveReason,
+  onClose,
+  onSaveEdit,
+  onSavePayment,
+  onSaveImage,
+  onSaveArchive
+}) {
+  const paper = action.paper
+
+  return (
+    <div className="modal-backdrop">
+      <section className="quick-action-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onClose}
+        >
+          إغلاق
+        </button>
+
+        <h2>
+          {getQuickActionTitle(action.type)}
+        </h2>
+
+        <p className="quick-action-paper-info">
+          الورقة بتاريخ: {paper.paper_date}
+        </p>
+
+        {action.type === 'edit' && (
+          <form onSubmit={onSaveEdit}>
+            <label>
+              قيمة الورقة
+              <input
+                type="number"
+                step="0.01"
+                value={amount}
+                onChange={(event) =>
+                  setAmount(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'جارٍ الحفظ...'
+                : 'حفظ التعديل'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'payment' && (
+          <form onSubmit={onSavePayment}>
+            <label>
+              قيمة الدفعة
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={amount}
+                onChange={(event) =>
+                  setAmount(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              تاريخ الدفعة
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(event) =>
+                  setPaymentDate(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ملاحظة
+              <textarea
+                value={paymentNote}
+                onChange={(event) =>
+                  setPaymentNote(event.target.value)
+                }
+                rows="2"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'جارٍ الحفظ...'
+                : 'حفظ الدفعة'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'image' && (
+          <form onSubmit={onSaveImage}>
+            <label>
+              الصورة الجديدة
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) =>
+                  setImageFile(
+                    event.target.files?.[0] || null
+                  )
+                }
+                required
+              />
+            </label>
+
+            <label>
+              وصف الصورة
+              <textarea
+                value={imageDescription}
+                onChange={(event) =>
+                  setImageDescription(event.target.value)
+                }
+                rows="2"
+                placeholder="مثال: تمت إضافة أسعار جديدة"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'جارٍ رفع الصورة...'
+                : 'حفظ الصورة الجديدة'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'archive' && (
+          <form onSubmit={onSaveArchive}>
+            <label>
+              سبب الأرشفة
+              <textarea
+                value={archiveReason}
+                onChange={(event) =>
+                  setArchiveReason(event.target.value)
+                }
+                rows="3"
+                placeholder="مثال: تم إلغاء الطلب"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="archive-button"
+              disabled={saving}
+            >
+              {saving
+                ? 'جارٍ الأرشفة...'
+                : 'تأكيد الأرشفة'}
+            </button>
+          </form>
+        )}
+      </section>
+    </div>
   )
 }
 
@@ -2245,6 +2916,26 @@ function PaperModal({
       </section>
     </div>
   )
+}
+
+function getQuickActionTitle(type) {
+  if (type === 'edit') {
+    return 'تعديل قيمة الورقة'
+  }
+
+  if (type === 'payment') {
+    return 'إضافة دفعة'
+  }
+
+  if (type === 'image') {
+    return 'استبدال الصورة'
+  }
+
+  if (type === 'archive') {
+    return 'أرشفة الورقة'
+  }
+
+  return 'إجراء الورقة'
 }
 
 function getPaymentsTotal(paper) {
