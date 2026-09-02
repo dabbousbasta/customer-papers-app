@@ -1526,3 +1526,80 @@ label select {
     font-size: 0.76rem;
   }
 }
+.backup-button {
+  color: white;
+  background: #15803d;
+}
+
+.backup-button:hover:not(:disabled) {
+  background: #166534;
+}
+
+.backup-status {
+  margin: 12px auto 0;
+  width: min(100% - 44px, 1180px);
+  text-align: center;
+}
+
+@media (max-width: 650px) {
+  .backup-button {
+    width: 100%;
+  }
+}
+.backup-actions {
+  position: relative;
+}
+
+.backup-options {
+  position: absolute;
+  z-index: 15;
+  top: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  width: 255px;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 13px;
+  background: white;
+  box-shadow: 0 14px 32px rgb(15 23 42 / 18%);
+}
+
+.backup-options button {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  color: white;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.backup-quick-option {
+  background: #0369a1;
+}
+
+.backup-quick-option:hover {
+  background: #075985;
+}
+
+.backup-full-option {
+  background: #15803d;
+}
+
+.backup-full-option:hover {
+  background: #166534;
+}
+
+@media (max-width: 650px) {
+  .backup-actions {
+    width: 100%;
+  }
+
+  .backup-options {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+}

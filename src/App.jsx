@@ -9,6 +9,9 @@ import {
 } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import {
+  createAndDownloadBackup
+} from './lib/backup'
+import {
   archiveCustomer,
   createCustomer,
   getCustomers,
@@ -227,36 +230,156 @@ function Header({
   signOut,
   title
 }) {
+  const [backupStatus, setBackupStatus] = useState('')
+  const [creatingBackup, setCreatingBackup] =
+    useState(false)
+  const [showBackupOptions, setShowBackupOptions] =
+    useState(false)
+
+  async function handleBackup(includeImages) {
+    const confirmationMessage = includeImages
+      ? 'سيتم تنزيل نسخة كاملة تشمل كل الزبائن والأوراق ' +
+        'والدفعات والصور الحالية وصور السجل. قد يستغرق ' +
+        'ذلك وقتًا إذا كان عدد الصور كبيرًا.\n\n' +
+        'هل تريد المتابعة؟'
+      : 'سيتم تنزيل نسخة سريعة تشمل كل الزبائن والأوراق ' +
+        'والدفعات، ولكن من دون الصور. هذه النسخة مناسبة ' +
+        'للحفظ اليومي.\n\nهل تريد المتابعة؟'
+
+    const confirmed = window.confirm(
+      confirmationMessage
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setShowBackupOptions(false)
+    setCreatingBackup(true)
+
+    setBackupStatus(
+      includeImages
+        ? 'جارٍ تجهيز النسخة الكاملة مع الصور...'
+        : 'جارٍ تجهيز النسخة السريعة بدون الصور...'
+    )
+
+    try {
+      const result = await createAndDownloadBackup({
+        includeImages,
+        onProgress: ({ message }) => {
+          setBackupStatus(message)
+        }
+      })
+
+      const failedCount = result.failedImages.length
+      const imagePart = includeImages
+        ? `، ${result.imagesCount} صورة`
+        : ''
+
+      const failedPart = failedCount
+        ? `، وتعذر تنزيل ${failedCount} صورة`
+        : ''
+
+      setBackupStatus(
+        `تم تنزيل النسخة ` +
+        `${includeImages ? 'الكاملة مع الصور' : 'السريعة بدون الصور'} ` +
+        `بنجاح: ${result.customersCount} زبون، ` +
+        `${result.papersCount} ورقة، ` +
+        `${result.paymentsCount} دفعة` +
+        imagePart +
+        failedPart
+      )
+    } catch (error) {
+      setBackupStatus(
+        `فشل إنشاء النسخة الاحتياطية: ${error.message}`
+      )
+    } finally {
+      setCreatingBackup(false)
+    }
+  }
+
   return (
-    <header className="topbar">
-      <div>
-        <Link to="/" className="app-brand-link">
-          دبوس البسطة
-        </Link>
+    <>
+      <header className="topbar">
+        <div>
+          <Link to="/" className="app-brand-link">
+            دبوس البسطة
+          </Link>
 
-        <h1>{title}</h1>
-        <p>{session.user.email}</p>
-      </div>
+          <h1>{title}</h1>
+          <p>{session.user.email}</p>
+        </div>
 
-      <div className="topbar-actions">
-        <Link
-          to="/"
-          className="topbar-link"
+        <div className="topbar-actions">
+          <Link
+            to="/"
+            className="topbar-link"
+          >
+            اختيار زبون آخر
+          </Link>
+
+          <div className="backup-actions">
+            <button
+              type="button"
+              onClick={() =>
+                setShowBackupOptions(
+                  !showBackupOptions
+                )
+              }
+              className="backup-button"
+              disabled={creatingBackup}
+            >
+              {creatingBackup
+                ? 'جارٍ النسخ الاحتياطي...'
+                : 'نسخة احتياطية'}
+            </button>
+
+            {showBackupOptions && !creatingBackup && (
+              <div className="backup-options">
+                <button
+                  type="button"
+                  className="backup-quick-option"
+                  onClick={() => handleBackup(false)}
+                >
+                  نسخة سريعة بدون الصور
+                </button>
+
+                <button
+                  type="button"
+                  className="backup-full-option"
+                  onClick={() => handleBackup(true)}
+                >
+                  نسخة كاملة مع الصور
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={signOut}
+            className="secondary-button"
+            disabled={creatingBackup}
+          >
+            تسجيل الخروج
+          </button>
+        </div>
+      </header>
+
+      {backupStatus && (
+        <p
+          className={
+            backupStatus.startsWith('فشل')
+              ? 'message error backup-status'
+              : 'message backup-status'
+          }
         >
-          اختيار زبون آخر
-        </Link>
-
-        <button
-          onClick={signOut}
-          className="secondary-button"
-        >
-          تسجيل الخروج
-        </button>
-      </div>
-    </header>
+          {backupStatus}
+        </p>
+      )}
+    </>
   )
 }
-
 function CustomerSelectPage({
   session,
   signOut
