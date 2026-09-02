@@ -52,14 +52,27 @@ export async function buildCustomerWhatsAppReport(
 
   const lines = [
     'كشف حساب',
-    `الزبون: ${customer.name}`,
-    ''
+    `الزبون: ${customer.name}`
   ]
+
+  if (customer.phone) {
+    lines.push(`الهاتف: ${customer.phone}`)
+  }
+
+  lines.push('')
+
+  if (papers.length === 0) {
+    lines.push('لا توجد أوراق ضمن هذا التبويب.')
+
+    return lines.join('\n')
+  }
 
   let finalBalance = 0
   let totalValues = 0
   let totalPayments = 0
   let paperNumber = 0
+
+  const imageLinks = []
 
   for (const paper of papers) {
     paperNumber += 1
@@ -77,10 +90,7 @@ export async function buildCustomerWhatsAppReport(
 
     totalPayments += paymentsTotal
 
-    if (
-      paper.status === 'open' &&
-      balance !== null
-    ) {
+    if (balance !== null) {
       finalBalance += balance
     }
 
@@ -126,6 +136,12 @@ export async function buildCustomerWhatsAppReport(
       }`
     )
 
+    if (paper.note) {
+      lines.push(`ملاحظة الورقة: ${paper.note}`)
+    }
+
+    lines.push('')
+
     if (includeImageLinks && paper.image_path) {
       try {
         const currentImageUrl =
@@ -134,60 +150,85 @@ export async function buildCustomerWhatsAppReport(
             86400
           )
 
-        lines.push('رابط الصورة الحالية:')
-        lines.push(currentImageUrl)
+        if (currentImageUrl) {
+          imageLinks.push({
+            label:
+              `صورة الورقة ${paperNumber} ` +
+              `بتاريخ ${paper.paper_date}`,
+            url: currentImageUrl
+          })
+        }
       } catch {
-        lines.push('رابط الصورة الحالية: غير متاح')
+        imageLinks.push({
+          label:
+            `صورة الورقة ${paperNumber} ` +
+            `بتاريخ ${paper.paper_date}`,
+          url: 'الرابط غير متاح'
+        })
       }
 
       try {
         const history =
           await getPaperImageHistory(paper.id)
 
-        if (history.length > 0) {
-          lines.push('سجل الصور:')
+        for (const image of history || []) {
+          try {
+            const imageUrl =
+              await createPaperImageUrl(
+                image.image_path,
+                86400
+              )
 
-          for (const image of history) {
-            try {
-              const imageUrl =
-                await createPaperImageUrl(
-                  image.image_path,
-                  86400
-                )
+            const description =
+              image.description ||
+              image.note ||
+              'صورة قديمة بدون وصف'
 
-              const description =
-                image.description ||
-                image.note ||
-                'صورة بدون وصف'
-
-              lines.push(`- ${description}`)
-              lines.push(imageUrl)
-            } catch {
-              lines.push('- صورة قديمة غير متاحة')
-            }
+            imageLinks.push({
+              label:
+                `صورة قديمة للورقة ${paperNumber}: ` +
+                description,
+              url: imageUrl
+            })
+          } catch {
+            imageLinks.push({
+              label:
+                `صورة قديمة للورقة ${paperNumber}`,
+              url: 'الرابط غير متاح'
+            })
           }
         }
       } catch {
-        lines.push('تعذر تحميل سجل الصور')
+        imageLinks.push({
+          label:
+            `سجل صور الورقة ${paperNumber}`,
+          url: 'تعذر تحميل سجل الصور'
+        })
       }
     }
-
-    lines.push('')
   }
 
   lines.push('الخلاصة النهائية')
   lines.push(`عدد الأوراق: ${paperNumber}`)
   lines.push(`إجمالي القيم: ${totalValues.toFixed(2)}`)
-  lines.push(
-    `إجمالي دفعات الأوراق المفتوحة: ${totalPayments.toFixed(
-      2
-    )}`
-  )
-  lines.push(
-    `الرصيد النهائي المفتوح: ${finalBalance.toFixed(
-      2
-    )}`
-  )
+  lines.push(`إجمالي الدفعات: ${totalPayments.toFixed(2)}`)
+  lines.push(`الرصيد النهائي: ${finalBalance.toFixed(2)}`)
+
+  if (includeImageLinks) {
+    lines.push('')
+    lines.push('روابط الصور')
+
+    if (imageLinks.length === 0) {
+      lines.push('لا توجد روابط صور متاحة.')
+    } else {
+      imageLinks.forEach((image, index) => {
+        lines.push('')
+        lines.push(`صورة ${index + 1}`)
+        lines.push(image.label)
+        lines.push(image.url)
+      })
+    }
+  }
 
   return lines.join('\n')
 }

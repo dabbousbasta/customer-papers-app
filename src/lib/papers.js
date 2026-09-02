@@ -157,6 +157,33 @@ export async function updatePaperImagePath(
   return data
 }
 
+export async function movePapersToCustomer({
+  paperIds,
+  targetCustomerId
+}) {
+  if (!Array.isArray(paperIds) || paperIds.length === 0) {
+    throw new Error('اختر ورقة واحدة على الأقل')
+  }
+
+  if (!targetCustomerId) {
+    throw new Error('اختر الزبون المنقول إليه')
+  }
+
+  const { data, error } = await supabase.rpc(
+    'move_papers_to_customer',
+    {
+      p_paper_ids: paperIds,
+      p_target_customer_id: targetCustomerId
+    }
+  )
+
+  if (error) {
+    throw error
+  }
+
+  return Number(data || 0)
+}
+
 export async function closePaper(paperId) {
   const { data, error } = await supabase.rpc(
     'close_paper',

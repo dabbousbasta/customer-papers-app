@@ -21,6 +21,7 @@ import {
   closePaper,
   createPaper,
   getPapers,
+  movePapersToCustomer,
   reopenPaper,
   restorePaper,
   updatePaperAmount,
@@ -1162,7 +1163,6 @@ function CustomerSummary({ customer }) {
     </section>
   )
 }
-
 function CustomerPapers({ customer }) {
   const navigate = useNavigate()
   const [papers, setPapers] = useState([])
@@ -1203,6 +1203,18 @@ function CustomerPapers({ customer }) {
   const [quickArchiveReason, setQuickArchiveReason] =
     useState('')
 
+  const [moveMode, setMoveMode] = useState(false)
+  const [selectedPaperIds, setSelectedPaperIds] =
+    useState([])
+  const [moveStep, setMoveStep] = useState('select')
+  const [targetSearch, setTargetSearch] = useState('')
+  const [targetCustomers, setTargetCustomers] =
+    useState([])
+  const [targetCustomer, setTargetCustomer] =
+    useState(null)
+  const [showPaperWhatsAppOptions, setShowPaperWhatsAppOptions] =
+    useState(false)
+
   useEffect(() => {
     loadPapers()
   }, [customer.id])
@@ -1216,21 +1228,6 @@ function CustomerPapers({ customer }) {
       setShowForm(true)
     }
   }, [customer.id])
-
-  function closePaperForm() {
-    setShowForm(false)
-
-    const params = new URLSearchParams(
-      window.location.search
-    )
-
-    if (params.get('addPaper') === '1') {
-      navigate(
-        `/customer/${customer.id}/papers`,
-        { replace: true }
-      )
-    }
-  }
 
   async function loadPapers() {
     try {
@@ -1261,6 +1258,21 @@ function CustomerPapers({ customer }) {
     }
   }
 
+  function closePaperForm() {
+    setShowForm(false)
+
+    const params = new URLSearchParams(
+      window.location.search
+    )
+
+    if (params.get('addPaper') === '1') {
+      navigate(
+        `/customer/${customer.id}/papers`,
+        { replace: true }
+      )
+    }
+  }
+
   function resetQuickAction() {
     setQuickAction(null)
     setQuickAmount('')
@@ -1271,6 +1283,104 @@ function CustomerPapers({ customer }) {
     setQuickImageFile(null)
     setQuickImageDescription('')
     setQuickArchiveReason('')
+  }
+
+  function startMoveMode() {
+    setMoveMode(true)
+    setSelectedPaperIds([])
+    setMoveStep('select')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+    setMessage('')
+  }
+
+  function cancelMoveMode() {
+    setMoveMode(false)
+    setSelectedPaperIds([])
+    setMoveStep('select')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+  }
+
+  function togglePaperSelection(paperId) {
+    setSelectedPaperIds((currentIds) => {
+      if (currentIds.includes(paperId)) {
+        return currentIds.filter((id) => id !== paperId)
+      }
+
+      return [...currentIds, paperId]
+    })
+  }
+
+  async function searchTargetCustomers(searchText) {
+    setTargetSearch(searchText)
+
+    const { data, error } = await getCustomers(
+      searchText,
+      {
+        archivedOnly: false
+      }
+    )
+
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    setTargetCustomers(
+      (data || []).filter(
+        (item) => item.id !== customer.id
+      )
+    )
+  }
+
+  function continueMoveToTarget() {
+    if (selectedPaperIds.length === 0) {
+      setMessage('اختر ورقة واحدة على الأقل للنقل')
+      return
+    }
+
+    setMoveStep('target')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+    setMessage('')
+  }
+
+  function chooseTargetCustomer(nextCustomer) {
+    setTargetCustomer(nextCustomer)
+    setMoveStep('confirm')
+    setMessage('')
+  }
+
+  async function confirmMovePapers() {
+    if (!targetCustomer) {
+      setMessage('اختر الزبون المنقول إليه')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ نقل الأوراق...')
+
+    try {
+      const movedCount = await movePapersToCustomer({
+        paperIds: selectedPaperIds,
+        targetCustomerId: targetCustomer.id
+      })
+
+      cancelMoveMode()
+      setMessage(
+        `تم نقل ${movedCount} ورقة إلى ${targetCustomer.name}`
+      )
+
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function savePaper(event) {
@@ -1317,6 +1427,11 @@ function CustomerPapers({ customer }) {
   }
 
   async function openDetails(paper) {
+    if (moveMode) {
+      togglePaperSelection(paper.id)
+      return
+    }
+
     try {
       const imageUrl = await createPaperImageUrl(
         paper.image_path
@@ -1526,27 +1641,124 @@ function CustomerPapers({ customer }) {
     }
   }
 
+  async function shareVisiblePapers(includeImageLinks) {
+    setMessage('جارٍ تجهيز رسالة WhatsApp...')
+
+    try {
+      const text =
+        await buildCustomerWhatsAppReport(
+          customer,
+          visiblePapers,
+          { includeImageLinks }
+        )
+
+      openWhatsAppMessage(text)
+
+      setMessage(
+        includeImageLinks
+          ? 'تم تجهيز الرسالة مع روابط الصور'
+          : 'تم تجهيز الرسالة بدون روابط الصور'
+      )
+
+      setShowPaperWhatsAppOptions(false)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
   const visiblePapers = papers.filter((paper) => {
     return filter === 'all'
       ? true
       : paper.status === filter
   })
 
+  const selectedPapers = papers.filter((paper) =>
+    selectedPaperIds.includes(paper.id)
+  )
+
   return (
     <section className="customer-section">
       <div className="section-header">
         <div>
           <h2>أوراق {customer.name}</h2>
-          <p>عدد النتائج: {visiblePapers.length}</p>
+          <p>
+            عدد الأوراق الظاهرة: {visiblePapers.length}
+          </p>
         </div>
 
-        <button
-          onClick={() => {
-            setShowForm(true)
-          }}
-        >
-          إضافة ورقة
-        </button>
+        <div className="papers-header-actions">
+          {!moveMode && (
+            <>
+              <button
+                className="move-papers-button"
+                onClick={startMoveMode}
+              >
+                نقل أوراق
+              </button>
+
+              <div className="paper-whatsapp-actions">
+                <button
+                  className="whatsapp-button"
+                  onClick={() =>
+                    setShowPaperWhatsAppOptions(
+                      !showPaperWhatsAppOptions
+                    )
+                  }
+                >
+                  WhatsApp
+                </button>
+
+                {showPaperWhatsAppOptions && (
+                  <div className="whatsapp-options">
+                    <button
+                      className="whatsapp-without-links-button"
+                      onClick={() =>
+                        shareVisiblePapers(false)
+                      }
+                    >
+                      إرسال بدون روابط الصور
+                    </button>
+
+                    <button
+                      className="whatsapp-with-links-button"
+                      onClick={() =>
+                        shareVisiblePapers(true)
+                      }
+                    >
+                      إرسال مع روابط الصور
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowForm(true)
+                }}
+              >
+                إضافة ورقة
+              </button>
+            </>
+          )}
+
+          {moveMode && (
+            <>
+              <button
+                className="cancel-move-button"
+                onClick={cancelMoveMode}
+              >
+                إلغاء النقل
+              </button>
+
+              <button
+                className="continue-move-button"
+                onClick={continueMoveToTarget}
+              >
+                متابعة النقل ({selectedPaperIds.length})
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="filter-tabs">
@@ -1569,6 +1781,14 @@ function CustomerPapers({ customer }) {
           </button>
         ))}
       </div>
+
+      {moveMode && (
+        <section className="move-mode-note">
+          <strong>وضع نقل الأوراق مفعل.</strong>
+          اختر الأوراق التي تريد نقلها، ثم اضغط
+          «متابعة النقل».
+        </section>
+      )}
 
       {showForm && (
         <section className="form-card">
@@ -1668,13 +1888,37 @@ function CustomerPapers({ customer }) {
         />
       )}
 
+      {moveStep === 'target' && (
+        <MoveTargetModal
+          sourceCustomer={customer}
+          search={targetSearch}
+          customers={targetCustomers}
+          onSearch={searchTargetCustomers}
+          onChoose={chooseTargetCustomer}
+          onBack={() => setMoveStep('select')}
+          onCancel={cancelMoveMode}
+        />
+      )}
+
+      {moveStep === 'confirm' && targetCustomer && (
+        <MoveConfirmModal
+          sourceCustomer={customer}
+          targetCustomer={targetCustomer}
+          papers={selectedPapers}
+          saving={saving}
+          onBack={() => setMoveStep('target')}
+          onCancel={cancelMoveMode}
+          onConfirm={confirmMovePapers}
+        />
+      )}
+
       {message && (
         <p className="message error">{message}</p>
       )}
 
       {visiblePapers.length === 0 ? (
         <div className="empty-card">
-          لا توجد أوراق
+          لا توجد أوراق ضمن هذا التبويب
         </div>
       ) : (
         <div className="papers-list">
@@ -1694,12 +1938,38 @@ function CustomerPapers({ customer }) {
                 ? 'غير محسوب'
                 : balance.toFixed(2)
 
+            const isSelected = selectedPaperIds.includes(
+              paper.id
+            )
+
             return (
               <article
-                className="paper-card clickable-paper-card"
+                className={
+                  isSelected
+                    ? 'paper-card clickable-paper-card selected-paper-card'
+                    : 'paper-card clickable-paper-card'
+                }
                 key={paper.id}
                 onClick={() => openDetails(paper)}
               >
+                {moveMode && (
+                  <label
+                    className="paper-select-checkbox"
+                    onClick={(event) =>
+                      event.stopPropagation()
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() =>
+                        togglePaperSelection(paper.id)
+                      }
+                    />
+                    اختيار
+                  </label>
+                )}
+
                 {thumbnailUrls[paper.id] ? (
                   <img
                     className="paper-thumbnail"
@@ -1731,102 +2001,104 @@ function CustomerPapers({ customer }) {
                   </p>
                 </div>
 
-                <div
-                  className="paper-shortcuts"
-                  onClick={(event) =>
-                    event.stopPropagation()
-                  }
-                >
-                  {paper.status !== 'archived' && (
-                    <>
-                      <button
-                        type="button"
-                        className="shortcut-edit"
-                        onClick={(event) =>
-                          openQuickAction(
-                            event,
-                            'edit',
-                            paper
-                          )
-                        }
-                      >
-                        تعديل
-                      </button>
-
-                      <button
-                        type="button"
-                        className="shortcut-payment"
-                        onClick={(event) =>
-                          openQuickAction(
-                            event,
-                            'payment',
-                            paper
-                          )
-                        }
-                      >
-                        دفعة
-                      </button>
-
-                      <button
-                        type="button"
-                        className="shortcut-image"
-                        onClick={(event) =>
-                          openQuickAction(
-                            event,
-                            'image',
-                            paper
-                          )
-                        }
-                      >
-                        استبدال
-                      </button>
-
-                      {paper.status === 'open' ? (
+                {!moveMode && (
+                  <div
+                    className="paper-shortcuts"
+                    onClick={(event) =>
+                      event.stopPropagation()
+                    }
+                  >
+                    {paper.status !== 'archived' && (
+                      <>
                         <button
                           type="button"
-                          className="shortcut-close"
+                          className="shortcut-edit"
                           onClick={(event) =>
-                            quickClosePaper(event, paper)
+                            openQuickAction(
+                              event,
+                              'edit',
+                              paper
+                            )
                           }
-                          disabled={saving}
                         >
-                          إغلاق
+                          تعديل
                         </button>
-                      ) : (
+
                         <button
                           type="button"
-                          className="shortcut-reopen"
+                          className="shortcut-payment"
                           onClick={(event) =>
-                            quickReopenPaper(event, paper)
+                            openQuickAction(
+                              event,
+                              'payment',
+                              paper
+                            )
                           }
-                          disabled={saving}
                         >
-                          فتح
+                          دفعة
                         </button>
-                      )}
 
-                      <button
-                        type="button"
-                        className="shortcut-archive"
-                        onClick={(event) =>
-                          openQuickAction(
-                            event,
-                            'archive',
-                            paper
-                          )
-                        }
-                      >
-                        أرشفة
-                      </button>
-                    </>
-                  )}
+                        <button
+                          type="button"
+                          className="shortcut-image"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'image',
+                              paper
+                            )
+                          }
+                        >
+                          استبدال
+                        </button>
 
-                  {paper.status === 'archived' && (
-                    <span className="archived-paper-note">
-                      افتح الورقة لإلغاء الأرشفة
-                    </span>
-                  )}
-                </div>
+                        {paper.status === 'open' ? (
+                          <button
+                            type="button"
+                            className="shortcut-close"
+                            onClick={(event) =>
+                              quickClosePaper(event, paper)
+                            }
+                            disabled={saving}
+                          >
+                            إغلاق
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="shortcut-reopen"
+                            onClick={(event) =>
+                              quickReopenPaper(event, paper)
+                            }
+                            disabled={saving}
+                          >
+                            فتح
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="shortcut-archive"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'archive',
+                              paper
+                            )
+                          }
+                        >
+                          أرشفة
+                        </button>
+                      </>
+                    )}
+
+                    {paper.status === 'archived' && (
+                      <span className="archived-paper-note">
+                        افتح الورقة لإلغاء الأرشفة
+                      </span>
+                    )}
+                  </div>
+                )}
               </article>
             )
           })}
@@ -1854,7 +2126,6 @@ function CustomerPapers({ customer }) {
     </section>
   )
 }
-
 function QuickPaperActionModal({
   action,
   amount,
@@ -2029,6 +2300,183 @@ function QuickPaperActionModal({
             </button>
           </form>
         )}
+      </section>
+    </div>
+  )
+}
+
+function MoveTargetModal({
+  sourceCustomer,
+  search,
+  customers,
+  onSearch,
+  onChoose,
+  onBack,
+  onCancel
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="move-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onCancel}
+        >
+          إغلاق
+        </button>
+
+        <h2>اختيار الزبون المنقول إليه</h2>
+
+        <p className="move-modal-note">
+          الأوراق ستُنقل من الزبون:
+          <strong> {sourceCustomer.name}</strong>
+        </p>
+
+        <label>
+          ابحث عن الزبون الجديد
+          <input
+            type="search"
+            placeholder="اكتب اسم الزبون..."
+            value={search}
+            onChange={(event) =>
+              onSearch(event.target.value)
+            }
+            autoFocus
+          />
+        </label>
+
+        {search.trim() && customers.length === 0 && (
+          <div className="empty-card">
+            لا يوجد زبون نشط مطابق للاسم.
+          </div>
+        )}
+
+        <div className="move-target-list">
+          {customers.map((customer) => (
+            <button
+              type="button"
+              className="move-target-item"
+              key={customer.id}
+              onClick={() => onChoose(customer)}
+            >
+              <strong>{customer.name}</strong>
+
+              {customer.phone && (
+                <small>{customer.phone}</small>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-bottom-actions">
+          <button
+            type="button"
+            className="back-button"
+            onClick={onBack}
+          >
+            رجوع
+          </button>
+
+          <button
+            type="button"
+            className="cancel-move-button"
+            onClick={onCancel}
+          >
+            إلغاء النقل
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function MoveConfirmModal({
+  sourceCustomer,
+  targetCustomer,
+  papers,
+  saving,
+  onBack,
+  onCancel,
+  onConfirm
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="move-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onCancel}
+        >
+          إغلاق
+        </button>
+
+        <h2>تأكيد نقل الأوراق</h2>
+
+        <div className="move-confirm-details">
+          <p>
+            من الزبون:
+            <strong> {sourceCustomer.name}</strong>
+          </p>
+
+          <p>
+            إلى الزبون:
+            <strong> {targetCustomer.name}</strong>
+          </p>
+
+          <p>
+            عدد الأوراق المختارة:
+            <strong> {papers.length}</strong>
+          </p>
+        </div>
+
+        <h3>الأوراق التي سيتم نقلها</h3>
+
+        <ul className="move-papers-list">
+          {papers.map((paper) => (
+            <li key={paper.id}>
+              <strong>{paper.paper_date}</strong>
+              <span>
+                الحالة: {getStatusText(paper.status)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="move-warning">
+          النقل لا يحذف الصور أو الدفعات أو سجل الصور.
+          سيتم فقط تغيير الزبون المرتبط بهذه الأوراق.
+        </p>
+
+        <div className="modal-bottom-actions">
+          <button
+            type="button"
+            className="back-button"
+            onClick={onBack}
+            disabled={saving}
+          >
+            رجوع
+          </button>
+
+          <button
+            type="button"
+            className="cancel-move-button"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="button"
+            className="confirm-move-button"
+            onClick={onConfirm}
+            disabled={saving}
+          >
+            {saving
+              ? 'جارٍ نقل الأوراق...'
+              : 'تأكيد نقل الأوراق'}
+          </button>
+        </div>
       </section>
     </div>
   )
@@ -2218,6 +2666,8 @@ function CustomerPayments({ customer }) {
 
 function CustomerReport({ customer }) {
   const [papers, setPapers] = useState([])
+  const [thumbnailUrls, setThumbnailUrls] =
+    useState({})
   const [message, setMessage] = useState('')
   const [showWhatsAppOptions, setShowWhatsAppOptions] =
     useState(false)
@@ -2234,6 +2684,22 @@ function CustomerReport({ customer }) {
       })
 
       setPapers(data || [])
+
+      const entries = await Promise.all(
+        (data || []).map(async (paper) => {
+          try {
+            const url = await createPaperImageUrl(
+              paper.image_path
+            )
+
+            return [paper.id, url]
+          } catch {
+            return [paper.id, null]
+          }
+        })
+      )
+
+      setThumbnailUrls(Object.fromEntries(entries))
     } catch (error) {
       setMessage(error.message)
     }
@@ -2374,25 +2840,39 @@ function CustomerReport({ customer }) {
 
             return (
               <article
-                className="report-paper-row"
+                className="report-paper-row report-paper-with-image"
                 key={paper.id}
               >
-                <span>
-                  التاريخ: {paper.paper_date}
-                </span>
+                {thumbnailUrls[paper.id] ? (
+                  <img
+                    className="report-paper-thumbnail"
+                    src={thumbnailUrls[paper.id]}
+                    alt={`صورة ورقة بتاريخ ${paper.paper_date}`}
+                  />
+                ) : (
+                  <div className="report-paper-thumbnail placeholder-thumbnail">
+                    لا توجد صورة
+                  </div>
+                )}
 
-                <span>
-                  القيمة: {amountText}
-                </span>
+                <div className="report-paper-content">
+                  <strong>
+                    التاريخ: {paper.paper_date}
+                  </strong>
 
-                <span>
-                  الدفعات:{' '}
-                  {getPaymentsTotal(paper).toFixed(2)}
-                </span>
+                  <span>
+                    القيمة: {amountText}
+                  </span>
 
-                <strong>
-                  الرصيد: {balanceText}
-                </strong>
+                  <span>
+                    الدفعات:{' '}
+                    {getPaymentsTotal(paper).toFixed(2)}
+                  </span>
+
+                  <strong>
+                    الرصيد: {balanceText}
+                  </strong>
+                </div>
               </article>
             )
           })
