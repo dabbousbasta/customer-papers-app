@@ -448,6 +448,8 @@ function CustomerSelectPage({
     useState('')
   const [savingCustomer, setSavingCustomer] =
     useState(false)
+  const [paperPickerCustomer, setPaperPickerCustomer] =
+    useState(null)
 
   useEffect(() => {
     loadCustomers('', false)
@@ -552,13 +554,23 @@ function CustomerSelectPage({
       return
     }
 
+    setPaperPickerCustomer(customer)
+  }
+
+  function chooseHomePaperSource(pick) {
+    if (!paperPickerCustomer) {
+      return
+    }
+
+    const customer = paperPickerCustomer
+
+    setPaperPickerCustomer(null)
     saveRecentCustomer(customer)
 
     navigate(
-      `/customer/${customer.id}/papers?addPaper=1`
+      `/customer/${customer.id}/papers?addPaper=1&pick=${pick}`
     )
   }
-
   function clearRecentCustomers() {
     localStorage.removeItem(RECENT_CUSTOMERS_KEY)
     setRecentCustomers([])
@@ -896,6 +908,53 @@ function CustomerSelectPage({
           </div>
         )}
       </section>
+      {paperPickerCustomer && (
+        <div className="modal-backdrop">
+          <section className="source-picker-modal">
+            <button
+              type="button"
+              className="close-button"
+              onClick={() => setPaperPickerCustomer(null)}
+              aria-label="إغلاق"
+              title="إغلاق"
+            >
+              ×
+            </button>
+
+            <h2>إضافة ورقة</h2>
+
+            <div className="source-picker-actions">
+              <button
+                type="button"
+                className="source-camera-button"
+                onClick={() =>
+                  chooseHomePaperSource('camera')
+                }
+                aria-label={
+                  `تصوير ورقة للزبون ${paperPickerCustomer.name}`
+                }
+                title="تصوير بالكاميرا"
+              >
+                📷
+              </button>
+
+              <button
+                type="button"
+                className="source-file-button"
+                onClick={() =>
+                  chooseHomePaperSource('file')
+                }
+                aria-label={
+                  `اختيار صورة للزبون ${paperPickerCustomer.name}`
+                }
+                title="اختيار صورة أو ملف"
+              >
+                🖼
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
@@ -2300,6 +2359,26 @@ useEffect(() => {
 
   return (
     <section className="customer-section">
+      <input
+        ref={cameraInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => {
+          setPaperFile(event.target.files?.[0] || null)
+        }}
+      />
+
+      <input
+        ref={fileInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept="image/*"
+        onChange={(event) => {
+          setPaperFile(event.target.files?.[0] || null)
+        }}
+      />
 <div className="papers-compact-header">
   <div className="papers-compact-title">
     <h2>أوراق {customer.name}</h2>
@@ -2500,21 +2579,21 @@ useEffect(() => {
           </div>
 
           <form onSubmit={savePaper}>
-            <label>
-              صورة الورقة
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(event) =>
-                  setPaperFile(
-                    event.target.files?.[0] || null
-                  )
-                }
-                required
-              />
-            </label>
+<div className="selected-paper-image">
+  <span>صورة الورقة</span>
 
+  {paperFile ? (
+    <p>
+      تم اختيار الصورة:
+      {' '}
+      <strong>{paperFile.name}</strong>
+    </p>
+  ) : (
+    <p className="message error">
+      لم يتم اختيار صورة. أغلق النموذج ثم اضغط + واختر 📷 أو 🖼.
+    </p>
+  )}
+</div>
             <label>
               تاريخ الورقة
               <input
