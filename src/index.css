@@ -2558,3 +2558,283 @@ main {
     font-size: 0.68rem;
   }
 }
+/* خيارات النسخة الاحتياطية الرمزية */
+
+.compact-topbar .compact-backup-options {
+  display: flex;
+  width: auto;
+  gap: 6px;
+  padding: 7px;
+}
+
+.compact-backup-options button {
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  place-items: center;
+  padding: 0;
+  border-radius: 9px;
+  color: white;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+/* اختيار صورة الورقة: كاميرا أو ملف */
+
+.paper-image-picker {
+  display: grid;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.paper-image-picker-label {
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.paper-image-picker-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.paper-image-picker-actions button {
+  display: inline-grid;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.camera-picker-button {
+  background: #0f766e;
+}
+
+.file-picker-button {
+  background: #2563eb;
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.selected-image-name {
+  margin: 0;
+  overflow: hidden;
+  color: #475569;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* رأس أوراق الزبون المختصر */
+
+.papers-compact-header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 5px 7px 5px 11px;
+  border: 1px solid #dbe6f0;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 90%);
+  box-shadow: 0 3px 10px rgb(15 23 42 / 4%);
+}
+
+.papers-compact-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.papers-compact-title h2 {
+  margin: 0;
+  overflow: hidden;
+  color: #0f3d68;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.papers-compact-title small {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.papers-compact-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.papers-icon-button {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  color: white;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.move-papers-icon {
+  background: #0f766e;
+}
+
+.whatsapp-icon-button {
+  background: #16a34a;
+  font-size: 1.05rem;
+}
+
+.add-paper-icon {
+  background: #2563eb;
+  font-size: 1.2rem;
+}
+
+.cancel-move-icon {
+  background: #b42318;
+  font-size: 1.2rem;
+}
+
+.papers-continue-button {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  background: #15803d;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.compact-paper-filters {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.compact-paper-filters .filter-button {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  padding: 4px;
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* قائمة خيارات WhatsApp الرمزية */
+
+.papers-compact-controls .whatsapp-options {
+  display: flex;
+  min-width: auto;
+  gap: 6px;
+  padding: 7px;
+}
+
+.papers-compact-controls .whatsapp-options button {
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  place-items: center;
+  padding: 0;
+  border-radius: 9px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+@media (max-width: 650px) {
+  .compact-topbar .compact-backup-options {
+    width: auto;
+  }
+
+  .compact-backup-options button {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .paper-image-picker-actions button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .papers-compact-header {
+    min-height: 42px;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 4px 6px 4px 8px;
+  }
+
+  .papers-compact-title {
+    gap: 4px;
+  }
+
+  .papers-compact-title h2 {
+    font-size: 0.78rem;
+  }
+
+  .papers-compact-title small {
+    font-size: 0.58rem;
+  }
+
+  .papers-compact-controls {
+    gap: 3px;
+  }
+
+  .papers-icon-button,
+  .papers-continue-button {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .compact-paper-filters {
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .compact-paper-filters .filter-button {
+    min-height: 36px;
+  }
+
+  .papers-compact-controls .whatsapp-options {
+    position: absolute;
+    left: 0;
+    width: auto;
+    margin-top: 0;
+  }
+
+  .papers-compact-controls .whatsapp-options button {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+}

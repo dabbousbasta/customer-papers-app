@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 import {
   Link,
   Navigate,
@@ -366,25 +370,32 @@ function Header({
               {creatingBackup ? '…' : '⤓'}
             </button>
 
-            {showBackupOptions && !creatingBackup && (
-              <div className="backup-options">
-                <button
-                  type="button"
-                  className="backup-quick-option"
-                  onClick={() => handleBackup(false)}
-                >
-                  نسخة سريعة بدون الصور
-                </button>
+           {showBackupOptions && !creatingBackup && (
+  <div
+    className="backup-options compact-backup-options"
+    aria-label="اختيار نوع النسخة الاحتياطية"
+  >
+    <button
+      type="button"
+      className="backup-quick-option"
+      onClick={() => handleBackup(false)}
+      aria-label="نسخة احتياطية سريعة بدون الصور"
+      title="نسخة سريعة بدون الصور"
+    >
+      ⚡
+    </button>
 
-                <button
-                  type="button"
-                  className="backup-full-option"
-                  onClick={() => handleBackup(true)}
-                >
-                  نسخة كاملة مع الصور
-                </button>
-              </div>
-            )}
+    <button
+      type="button"
+      className="backup-full-option"
+      onClick={() => handleBackup(true)}
+      aria-label="نسخة احتياطية كاملة مع الصور"
+      title="نسخة كاملة مع الصور"
+    >
+      🗃
+    </button>
+  </div>
+)}
           </div>
 
           <button
@@ -1700,6 +1711,8 @@ function CustomerSummary({ customer }) {
 function CustomerPapers({ customer }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const cameraInputRef = useRef(null)
+  const fileInputRef = useRef(null)
   const [papers, setPapers] = useState([])
   const [thumbnailUrls, setThumbnailUrls] =
     useState({})
@@ -2208,110 +2221,130 @@ function CustomerPapers({ customer }) {
 
   return (
     <section className="customer-section">
-      <div className="section-header">
-        <div>
-          <h2>أوراق {customer.name}</h2>
-          <p>
-            عدد الأوراق الظاهرة: {visiblePapers.length}
-          </p>
-        </div>
+<div className="papers-compact-header">
+  <div className="papers-compact-title">
+    <h2>أوراق {customer.name}</h2>
 
-        <div className="papers-header-actions">
-          {!moveMode && (
-            <>
-              <button
-                className="move-papers-button"
-                onClick={startMoveMode}
-              >
-                نقل أوراق
-              </button>
+    <small>
+      {visiblePapers.length} ورقة ظاهرة
+    </small>
+  </div>
 
-              <div className="paper-whatsapp-actions">
-                <button
-                  className="whatsapp-button"
-                  onClick={() =>
-                    setShowPaperWhatsAppOptions(
-                      !showPaperWhatsAppOptions
-                    )
-                  }
-                >
-                  WhatsApp
-                </button>
+  <div className="papers-compact-controls">
+    {!moveMode ? (
+      <>
+        <button
+          type="button"
+          className="papers-icon-button move-papers-icon"
+          onClick={startMoveMode}
+          aria-label="نقل أوراق"
+          title="نقل أوراق"
+        >
+          ⇄
+        </button>
 
-                {showPaperWhatsAppOptions && (
-                  <div className="whatsapp-options">
-                    <button
-                      className="whatsapp-without-links-button"
-                      onClick={() =>
-                        shareVisiblePapers(false)
-                      }
-                    >
-                      إرسال بدون روابط الصور
-                    </button>
-
-                    <button
-                      className="whatsapp-with-links-button"
-                      onClick={() =>
-                        shareVisiblePapers(true)
-                      }
-                    >
-                      إرسال مع روابط الصور
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowForm(true)
-                }}
-              >
-                إضافة ورقة
-              </button>
-            </>
-          )}
-
-          {moveMode && (
-            <>
-              <button
-                className="cancel-move-button"
-                onClick={cancelMoveMode}
-              >
-                إلغاء النقل
-              </button>
-
-              <button
-                className="continue-move-button"
-                onClick={continueMoveToTarget}
-              >
-                متابعة النقل ({selectedPaperIds.length})
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="filter-tabs">
-        {[
-          ['all', 'كل الأوراق'],
-          ['open', 'مفتوحة'],
-          ['closed', 'مغلقة'],
-          ['archived', 'مؤرشفة']
-        ].map(([value, label]) => (
+        <div className="paper-whatsapp-actions">
           <button
-            key={value}
-            className={
-              filter === value
-                ? 'filter-button active'
-                : 'filter-button'
+            type="button"
+            className="papers-icon-button whatsapp-icon-button"
+            onClick={() =>
+              setShowPaperWhatsAppOptions(
+                !showPaperWhatsAppOptions
+              )
             }
-            onClick={() => setFilter(value)}
+            aria-label="إرسال تقرير الأوراق عبر WhatsApp"
+            title="WhatsApp"
           >
-            {label}
+            ☏
           </button>
-        ))}
-      </div>
 
+          {showPaperWhatsAppOptions && (
+            <div className="whatsapp-options">
+              <button
+                type="button"
+                className="whatsapp-without-links-button"
+                onClick={() => shareVisiblePapers(false)}
+                aria-label="إرسال تقرير الأوراق بدون روابط الصور"
+                title="إرسال بدون روابط الصور"
+              >
+                ◌
+              </button>
+
+              <button
+                type="button"
+                className="whatsapp-with-links-button"
+                onClick={() => shareVisiblePapers(true)}
+                aria-label="إرسال تقرير الأوراق مع روابط الصور"
+                title="إرسال مع روابط الصور"
+              >
+                🔗
+              </button>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="papers-icon-button add-paper-icon"
+          onClick={() => setShowForm(true)}
+          aria-label="إضافة ورقة جديدة"
+          title="إضافة ورقة جديدة"
+        >
+          +
+        </button>
+      </>
+    ) : (
+      <>
+        <button
+          type="button"
+          className="papers-icon-button cancel-move-icon"
+          onClick={cancelMoveMode}
+          aria-label="إلغاء نقل الأوراق"
+          title="إلغاء النقل"
+        >
+          ×
+        </button>
+
+        <button
+          type="button"
+          className="papers-continue-button"
+          onClick={continueMoveToTarget}
+          disabled={selectedPaperIds.length === 0}
+          aria-label={`متابعة نقل ${selectedPaperIds.length} ورقة`}
+          title={`متابعة نقل ${selectedPaperIds.length} ورقة`}
+        >
+          ✓
+        </button>
+      </>
+    )}
+  </div>
+</div>
+<div
+  className="filter-tabs compact-paper-filters"
+  aria-label="فلتر الأوراق"
+>
+  {[
+    ['all', '▤', 'كل الأوراق'],
+    ['open', '◉', 'الأوراق المفتوحة'],
+    ['closed', '✓', 'الأوراق المغلقة'],
+    ['archived', '🗃', 'الأوراق المؤرشفة']
+  ].map(([value, icon, label]) => (
+    <button
+      key={value}
+      type="button"
+      className={
+        filter === value
+          ? 'filter-button active'
+          : 'filter-button'
+      }
+      onClick={() => setFilter(value)}
+      aria-label={label}
+      title={label}
+    >
+      {icon}
+    </button>
+  ))}
+</div>
       {moveMode && (
         <section className="move-mode-note">
           <strong>وضع نقل الأوراق مفعل.</strong>
@@ -3845,20 +3878,60 @@ function PaperModal({
                 className="image-form"
                 onSubmit={replaceImage}
               >
-                <label>
-                  الصورة الجديدة
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(event) =>
-                      setNewImageFile(
-                        event.target.files?.[0] || null
-                      )
-                    }
-                    required
-                  />
-                </label>
+               <div className="paper-image-picker">
+  <span className="paper-image-picker-label">
+    صورة الورقة
+  </span>
+
+  <div className="paper-image-picker-actions">
+    <button
+      type="button"
+      className="camera-picker-button"
+      onClick={() => cameraInputRef.current?.click()}
+      aria-label="تصوير الورقة بالكاميرا"
+      title="تصوير بالكاميرا"
+    >
+      📷
+    </button>
+
+    <button
+      type="button"
+      className="file-picker-button"
+      onClick={() => fileInputRef.current?.click()}
+      aria-label="اختيار صورة أو ملف من الهاتف"
+      title="اختيار صورة أو ملف"
+    >
+      🖼
+    </button>
+  </div>
+
+  <input
+    ref={cameraInputRef}
+    className="hidden-file-input"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    onChange={(event) =>
+      setPaperFile(event.target.files?.[0] || null)
+    }
+  />
+
+  <input
+    ref={fileInputRef}
+    className="hidden-file-input"
+    type="file"
+    accept="image/*"
+    onChange={(event) =>
+      setPaperFile(event.target.files?.[0] || null)
+    }
+  />
+
+  <p className="selected-image-name">
+    {paperFile
+      ? `الصورة المختارة: ${paperFile.name}`
+      : 'اختر طريقة إضافة الصورة.'}
+  </p>
+</div>
 
                 <label>
                   وصف الصورة
