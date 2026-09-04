@@ -45,6 +45,35 @@ import {
 
 const RECENT_CUSTOMERS_KEY =
   'customer-papers-recent-customers'
+function getActivePaymentsTotal(papers = []) {
+  return papers.reduce(
+    (sum, paper) =>
+      sum +
+      (paper.payments || [])
+        .filter((payment) => !payment.is_archived)
+        .reduce(
+          (paymentsSum, payment) =>
+            paymentsSum + Number(payment.amount || 0),
+          0
+        ),
+    0
+  )
+}
+
+function getOpenBalanceTotal(papers = []) {
+  return papers
+    .filter((paper) => paper.status === 'open')
+    .reduce((sum, paper) => {
+      const balance = calculateBalance(
+        paper.total_amount,
+        paper.payments
+      )
+
+      return balance === null
+        ? sum
+        : sum + balance
+    }, 0)
+}
 
 function App() {
   const [session, setSession] = useState(null)
@@ -301,8 +330,8 @@ function Header({
 
   return (
     <>
-      <header className="topbar">
-        <div>
+      <header className="topbar compact-topbar">
+        <div className="topbar-brand">
           <Link to="/" className="app-brand-link">
             دبوس البسطة
           </Link>
@@ -311,12 +340,14 @@ function Header({
           <p>{session.user.email}</p>
         </div>
 
-        <div className="topbar-actions">
+        <div className="topbar-actions compact-topbar-actions">
           <Link
             to="/"
-            className="topbar-link"
+            className="header-icon-button home-header-button"
+            aria-label="اختيار زبون آخر"
+            title="اختيار زبون آخر"
           >
-            اختيار زبون آخر
+            ⌂
           </Link>
 
           <div className="backup-actions">
@@ -327,12 +358,12 @@ function Header({
                   !showBackupOptions
                 )
               }
-              className="backup-button"
+              className="header-icon-button backup-button"
               disabled={creatingBackup}
+              aria-label="نسخة احتياطية"
+              title="نسخة احتياطية"
             >
-              {creatingBackup
-                ? 'جارٍ النسخ الاحتياطي...'
-                : 'نسخة احتياطية'}
+              {creatingBackup ? '…' : '⤓'}
             </button>
 
             {showBackupOptions && !creatingBackup && (
@@ -359,10 +390,12 @@ function Header({
           <button
             type="button"
             onClick={signOut}
-            className="secondary-button"
+            className="header-icon-button secondary-button"
             disabled={creatingBackup}
+            aria-label="تسجيل الخروج"
+            title="تسجيل الخروج"
           >
-            تسجيل الخروج
+            ⇥
           </button>
         </div>
       </header>
@@ -718,7 +751,9 @@ function CustomerSelectPage({
       {message && (
         <p className="message error">{message}</p>
       )}
-
+      {!showArchived && (
+        <HomeSummary />
+      )}
       {!showArchived && recentCustomers.length > 0 && (
         <section className="compact-customer-section">
           <div className="compact-list-heading">
@@ -853,6 +888,119 @@ function CustomerSelectPage({
     </main>
   )
 }
+function HomeSummary() {
+  const [customers, setCustomers] = useState([])
+  const [papers, setPapers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadSummary()
+  }, [])
+
+  async function loadSummary() {
+    try {
+      const { data, error } = await getCustomers(
+        '',
+        { archivedOnly: false }
+      )
+
+      if (error) {
+        throw error
+      }
+
+      const allPapers = await getPapers({
+        includeArchived: true
+      })
+
+      setCustomers(data || [])
+      setPapers(allPapers || [])
+    } catch {
+      setCustomers([])
+      setPapers([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="compact-summary home-summary">
+        <span className="compact-summary-loading">
+          جارٍ تحميل الملخص...
+        </span>
+      </section>
+    )
+  }
+
+  const visiblePapers = papers.filter(
+    (paper) => paper.status !== 'archived'
+  )
+
+  const openPapers = visiblePapers.filter(
+    (paper) => paper.status === 'open'
+  )
+
+  const openBalance = getOpenBalanceTotal(openPapers)
+
+  return (
+    <section
+      className="compact-summary home-summary"
+      aria-label="ملخص الموقع"
+    >
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          👤
+        </span>
+        <span className="compact-summary-label">
+          زبائن
+        </span>
+        <strong>{customers.length}</strong>
+      </article>
+
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ▤
+        </span>
+        <span className="compact-summary-label">
+          الأوراق
+        </span>
+        <strong>{visiblePapers.length}</strong>
+      </article>
+
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ◉
+        </span>
+        <span className="compact-summary-label">
+          مفتوحة
+        </span>
+        <strong>{openPapers.length}</strong>
+      </article>
+
+      <article className="compact-summary-item balance-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ◈
+        </span>
+        <span className="compact-summary-label">
+          الرصيد المفتوح
+        </span>
+        <strong>{openBalance.toFixed(2)}</strong>
+      </article>
+    </section>
+  )
+}
 function CustomerPage({
   session,
   signOut
@@ -965,29 +1113,7 @@ function CustomerPage({
         title={customer.name}
       />
 
-      <section className="customer-context-card">
-        <div>
-          <span>الزبون المحدد</span>
-          <h2>{customer.name}</h2>
-
-          {customer.phone && (
-            <p>الهاتف: {customer.phone}</p>
-          )}
-
-          {customer.notes && (
-            <p>ملاحظات: {customer.notes}</p>
-          )}
-        </div>
-
-        <Link
-          to="/"
-          className="change-customer-button"
-        >
-          تغيير الزبون
-        </Link>
-      </section>
-
-      <CustomerEditCard
+      <CustomerCompactBar
         customer={customer}
         onSaved={handleCustomerSaved}
         onArchived={handleCustomerArchived}
@@ -995,23 +1121,32 @@ function CustomerPage({
 
       <CustomerSummary customer={customer} />
 
-      <nav className="customer-tabs compact-customer-tabs">
+      <nav
+        className="customer-tabs compact-customer-tabs"
+        aria-label="تبويبات الزبون"
+      >
         <Link
           to={`/customer/${customerId}/papers`}
+          title="الأوراق"
+          aria-label="الأوراق"
         >
-          الأوراق
+          ▤
         </Link>
 
         <Link
           to={`/customer/${customerId}/payments`}
+          title="الدفعات"
+          aria-label="الدفعات"
         >
-          الدفعات
+          ↓
         </Link>
 
         <Link
           to={`/customer/${customerId}/report`}
+          title="التقرير"
+          aria-label="التقرير"
         >
-          التقرير
+          ◈
         </Link>
       </nav>
 
@@ -1023,9 +1158,7 @@ function CustomerPage({
 
         <Route
           path="papers"
-          element={
-            <CustomerPapers customer={customer} />
-          }
+          element={<CustomerPapers customer={customer} />}
         />
 
         <Route
@@ -1046,6 +1179,211 @@ function CustomerPage({
   )
 }
 
+function CustomerCompactBar({
+  customer,
+  onSaved,
+  onArchived
+}) {
+  const navigate = useNavigate()
+  const [showEditForm, setShowEditForm] =
+    useState(false)
+  const [name, setName] = useState(customer.name || '')
+  const [phone, setPhone] = useState(
+    customer.phone || ''
+  )
+  const [notes, setNotes] = useState(
+    customer.notes || ''
+  )
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setName(customer.name || '')
+    setPhone(customer.phone || '')
+    setNotes(customer.notes || '')
+  }, [customer])
+
+  async function saveCustomer(event) {
+    event.preventDefault()
+
+    if (!name.trim()) {
+      setMessage('اسم الزبون مطلوب')
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await updateCustomer({
+        customerId: customer.id,
+        name,
+        phone,
+        notes
+      })
+
+      setShowEditForm(false)
+      setMessage('تم حفظ بيانات الزبون')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveCurrentCustomer() {
+    const confirmed = window.confirm(
+      `هل تريد أرشفة الزبون: ${customer.name}؟\n\n` +
+      'سيختفي من البحث العادي، لكن أوراقه ودفعاته لن تُحذف.'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await archiveCustomer(customer.id)
+      await onArchived()
+    } catch (error) {
+      setMessage(error.message)
+      setSaving(false)
+    }
+  }
+
+  function openNewPaper() {
+    navigate(
+      `/customer/${customer.id}/papers?addPaper=1`
+    )
+  }
+
+  return (
+    <section className="customer-compact-bar">
+      <div className="customer-compact-main">
+        <h2>{customer.name}</h2>
+
+        <div className="customer-compact-actions">
+          <button
+            type="button"
+            className="customer-action-icon add-paper-action"
+            onClick={openNewPaper}
+            aria-label={`إضافة ورقة للزبون ${customer.name}`}
+            title="إضافة ورقة"
+          >
+            +
+          </button>
+
+          <Link
+            to="/"
+            className="customer-action-icon change-customer-action"
+            aria-label="تغيير الزبون"
+            title="تغيير الزبون"
+          >
+            ⌂
+          </Link>
+
+          <button
+            type="button"
+            className="customer-action-icon edit-customer-action"
+            onClick={() =>
+              setShowEditForm(!showEditForm)
+            }
+            disabled={saving}
+            aria-label="تعديل بيانات الزبون"
+            title="تعديل بيانات الزبون"
+          >
+            ✎
+          </button>
+
+          <button
+            type="button"
+            className="customer-action-icon archive-customer-action"
+            onClick={archiveCurrentCustomer}
+            disabled={saving}
+            aria-label="أرشفة الزبون"
+            title="أرشفة الزبون"
+          >
+            🗃
+          </button>
+        </div>
+      </div>
+
+      {showEditForm && (
+        <form
+          className="customer-compact-edit-form"
+          onSubmit={saveCustomer}
+        >
+          <label>
+            اسم الزبون
+            <input
+              type="text"
+              value={name}
+              onChange={(event) =>
+                setName(event.target.value)
+              }
+              required
+            />
+          </label>
+
+          <label>
+            رقم الهاتف
+            <input
+              type="tel"
+              value={phone}
+              onChange={(event) =>
+                setPhone(event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            ملاحظات
+            <textarea
+              value={notes}
+              onChange={(event) =>
+                setNotes(event.target.value)
+              }
+              rows="3"
+            />
+          </label>
+
+          <div className="customer-compact-edit-actions">
+            <button
+              type="submit"
+              disabled={saving}
+            >
+              {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+            </button>
+
+            <button
+              type="button"
+              className="compact-edit-cancel"
+              onClick={() => {
+                setShowEditForm(false)
+                setName(customer.name || '')
+                setPhone(customer.phone || '')
+                setNotes(customer.notes || '')
+                setMessage('')
+              }}
+              disabled={saving}
+            >
+              إلغاء
+            </button>
+          </div>
+        </form>
+      )}
+
+      {message && (
+        <p className="message customer-compact-message">
+          {message}
+        </p>
+      )}
+    </section>
+  )
+}
 function CustomerEditCard({
   customer,
   onSaved,
@@ -1255,65 +1593,86 @@ function CustomerSummary({ customer }) {
 
   if (loading) {
     return (
-      <div className="empty-card">
-        جارٍ تحميل الملخص...
-      </div>
+      <section className="compact-summary customer-summary">
+        <span className="compact-summary-loading">
+          جارٍ تحميل الملخص...
+        </span>
+      </section>
     )
   }
 
-  const openPapers = papers.filter(
+  const visiblePapers = papers.filter(
+    (paper) => paper.status !== 'archived'
+  )
+
+  const openPapers = visiblePapers.filter(
     (paper) => paper.status === 'open'
   )
 
-  const totalOpenPayments = openPapers.reduce(
-    (sum, paper) =>
-      sum + getPaymentsTotal(paper),
-    0
+  const totalOpenPayments = getActivePaymentsTotal(
+    openPapers
   )
 
-  const finalBalance = openPapers.reduce(
-    (sum, paper) => {
-      const balance = calculateBalance(
-        paper.total_amount,
-        paper.payments
-      )
-
-      return balance === null
-        ? sum
-        : sum + balance
-    },
-    0
-  )
+  const finalBalance = getOpenBalanceTotal(openPapers)
 
   return (
-    <section className="customer-summary-fixed">
-      <div className="summary-cards">
-        <article className="summary-card">
-          <span>كل الأوراق</span>
-          <strong>{papers.length}</strong>
-        </article>
+    <section
+      className="compact-summary customer-summary"
+      aria-label={`ملخص الزبون ${customer.name}`}
+    >
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ▤
+        </span>
+        <span className="compact-summary-label">
+          كل الأوراق
+        </span>
+        <strong>{visiblePapers.length}</strong>
+      </article>
 
-        <article className="summary-card">
-          <span>الأوراق المفتوحة</span>
-          <strong>{openPapers.length}</strong>
-        </article>
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ◉
+        </span>
+        <span className="compact-summary-label">
+          مفتوحة
+        </span>
+        <strong>{openPapers.length}</strong>
+      </article>
 
-        <article className="summary-card">
-          <span>دفعات الأوراق المفتوحة</span>
-          <strong>
-            {totalOpenPayments.toFixed(2)}
-          </strong>
-        </article>
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ↓
+        </span>
+        <span className="compact-summary-label">
+          دفعات مفتوحة
+        </span>
+        <strong>
+          {totalOpenPayments.toFixed(2)}
+        </strong>
+      </article>
 
-        <article className="summary-card total-summary-card">
-          <span>الرصيد النهائي المفتوح</span>
-          <strong>{finalBalance.toFixed(2)}</strong>
-        </article>
-      </div>
-
-      <p className="summary-note">
-        الملخص المالي يحسب الأوراق المفتوحة فقط.
-      </p>
+      <article className="compact-summary-item balance-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ◈
+        </span>
+        <span className="compact-summary-label">
+          الرصيد المفتوح
+        </span>
+        <strong>{finalBalance.toFixed(2)}</strong>
+      </article>
     </section>
   )
 }
