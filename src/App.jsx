@@ -932,12 +932,30 @@ function HomeSummary() {
     )
   }
 
-  const visiblePapers = papers.filter(
-    (paper) => paper.status !== 'archived'
+  const activeCustomerIds = new Set(
+    customers.map((customer) => customer.id)
   )
 
-  const openPapers = visiblePapers.filter(
-    (paper) => paper.status === 'open'
+  const openPapers = papers.filter(
+    (paper) =>
+      paper.status === 'open' &&
+      activeCustomerIds.has(paper.customer_id)
+  )
+
+  const customersWithOpenPapers = new Set(
+    openPapers.map((paper) => paper.customer_id)
+  )
+
+  const pricedOpenPapers = openPapers.filter(
+    (paper) =>
+      paper.total_amount !== null &&
+      paper.total_amount !== undefined
+  )
+
+  const openPapersTotalAmount = pricedOpenPapers.reduce(
+    (sum, paper) =>
+      sum + Number(paper.total_amount || 0),
+    0
   )
 
   const openBalance = getOpenBalanceTotal(openPapers)
@@ -945,7 +963,7 @@ function HomeSummary() {
   return (
     <section
       className="compact-summary home-summary"
-      aria-label="ملخص الموقع"
+      aria-label="ملخص الأوراق المفتوحة"
     >
       <article className="compact-summary-item">
         <span
@@ -955,22 +973,9 @@ function HomeSummary() {
           👤
         </span>
         <span className="compact-summary-label">
-          زبائن
+          زبائن مفتوحون
         </span>
-        <strong>{customers.length}</strong>
-      </article>
-
-      <article className="compact-summary-item">
-        <span
-          className="compact-summary-icon"
-          aria-hidden="true"
-        >
-          ▤
-        </span>
-        <span className="compact-summary-label">
-          الأوراق
-        </span>
-        <strong>{visiblePapers.length}</strong>
+        <strong>{customersWithOpenPapers.size}</strong>
       </article>
 
       <article className="compact-summary-item">
@@ -981,9 +986,24 @@ function HomeSummary() {
           ◉
         </span>
         <span className="compact-summary-label">
-          مفتوحة
+          أوراق مفتوحة
         </span>
         <strong>{openPapers.length}</strong>
+      </article>
+
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ₿
+        </span>
+        <span className="compact-summary-label">
+          قيمة مفتوحة
+        </span>
+        <strong>
+          {openPapersTotalAmount.toFixed(2)}
+        </strong>
       </article>
 
       <article className="compact-summary-item balance-summary-item">
@@ -994,13 +1014,14 @@ function HomeSummary() {
           ◈
         </span>
         <span className="compact-summary-label">
-          الرصيد المفتوح
+          رصيد مفتوح
         </span>
         <strong>{openBalance.toFixed(2)}</strong>
       </article>
     </section>
   )
 }
+
 function CustomerPage({
   session,
   signOut
