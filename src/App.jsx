@@ -1219,6 +1219,8 @@ function CustomerCompactBar({
   const navigate = useNavigate()
   const [showEditForm, setShowEditForm] =
     useState(false)
+  const [showPaperPicker, setShowPaperPicker] =
+    useState(false)
   const [name, setName] = useState(customer.name || '')
   const [phone, setPhone] = useState(
     customer.phone || ''
@@ -1287,8 +1289,14 @@ function CustomerCompactBar({
   }
 
   function openNewPaper() {
+    setShowPaperPicker(true)
+  }
+
+  function choosePaperSource(pick) {
+    setShowPaperPicker(false)
+
     navigate(
-      `/customer/${customer.id}/papers?addPaper=1`
+      `/customer/${customer.id}/papers?addPaper=1&pick=${pick}`
     )
   }
 
@@ -1413,10 +1421,49 @@ function CustomerCompactBar({
           {message}
         </p>
       )}
+
+      {showPaperPicker && (
+        <div className="modal-backdrop">
+          <section className="source-picker-modal">
+            <button
+              type="button"
+              className="close-button"
+              onClick={() => setShowPaperPicker(false)}
+              aria-label="إغلاق"
+              title="إغلاق"
+            >
+              ×
+            </button>
+
+            <h2>إضافة ورقة</h2>
+
+            <div className="source-picker-actions">
+              <button
+                type="button"
+                className="source-camera-button"
+                onClick={() => choosePaperSource('camera')}
+                aria-label="تصوير الورقة بالكاميرا"
+                title="تصوير بالكاميرا"
+              >
+                📷
+              </button>
+
+              <button
+                type="button"
+                className="source-file-button"
+                onClick={() => choosePaperSource('file')}
+                aria-label="اختيار صورة من الهاتف"
+                title="اختيار صورة من الهاتف"
+              >
+                🖼
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   )
-}
-function CustomerEditCard({
+}function CustomerEditCard({
   customer,
   onSaved,
   onArchived
@@ -1713,6 +1760,8 @@ function CustomerPapers({ customer }) {
   const location = useLocation()
   const cameraInputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const [showPaperSourcePicker, setShowPaperSourcePicker] =
+    useState(false)
   const [papers, setPapers] = useState([])
   const [thumbnailUrls, setThumbnailUrls] =
     useState({})
@@ -1771,7 +1820,37 @@ function CustomerPapers({ customer }) {
     const params = new URLSearchParams(location.search)
 
     setShowForm(params.get('addPaper') === '1')
+ 
   }, [location.search])
+useEffect(() => {
+  const params = new URLSearchParams(location.search)
+  const pick = params.get('pick')
+
+  if (!pick) {
+    return
+  }
+
+  setShowForm(true)
+
+  window.setTimeout(() => {
+    if (pick === 'camera') {
+      cameraInputRef.current?.click()
+    }
+
+    if (pick === 'file') {
+      fileInputRef.current?.click()
+    }
+  }, 150)
+
+  navigate(
+    `/customer/${customer.id}/papers?addPaper=1`,
+    { replace: true }
+  )
+}, [
+  customer.id,
+  location.search,
+  navigate
+])
 
 
   async function loadPapers() {
@@ -2284,14 +2363,14 @@ function CustomerPapers({ customer }) {
         </div>
 
         <button
-          type="button"
-          className="papers-icon-button add-paper-icon"
-          onClick={() => setShowForm(true)}
-          aria-label="إضافة ورقة جديدة"
-          title="إضافة ورقة جديدة"
-        >
-          +
-        </button>
+  type="button"
+  className="papers-icon-button add-paper-icon"
+  onClick={() => setShowPaperSourcePicker(true)}
+  aria-label="إضافة ورقة جديدة"
+  title="إضافة ورقة جديدة"
+>
+  +
+</button>
       </>
     ) : (
       <>
@@ -2351,6 +2430,59 @@ function CustomerPapers({ customer }) {
           اختر الأوراق التي تريد نقلها، ثم اضغط
           «متابعة النقل».
         </section>
+      )}
+      {showPaperSourcePicker && (
+        <div className="modal-backdrop">
+          <section className="source-picker-modal">
+            <button
+              type="button"
+              className="close-button"
+              onClick={() =>
+                setShowPaperSourcePicker(false)
+              }
+              aria-label="إغلاق"
+              title="إغلاق"
+            >
+              ×
+            </button>
+
+            <h2>إضافة ورقة</h2>
+
+            <div className="source-picker-actions">
+              <button
+                type="button"
+                className="source-camera-button"
+                onClick={() => {
+                  setShowPaperSourcePicker(false)
+                  window.setTimeout(() => {
+                    cameraInputRef.current?.click()
+                  }, 120)
+                  setShowForm(true)
+                }}
+                aria-label="تصوير الورقة بالكاميرا"
+                title="تصوير بالكاميرا"
+              >
+                📷
+              </button>
+
+              <button
+                type="button"
+                className="source-file-button"
+                onClick={() => {
+                  setShowPaperSourcePicker(false)
+                  window.setTimeout(() => {
+                    fileInputRef.current?.click()
+                  }, 120)
+                  setShowForm(true)
+                }}
+                aria-label="اختيار صورة من الهاتف"
+                title="اختيار صورة من الهاتف"
+              >
+                🖼
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {showForm && (

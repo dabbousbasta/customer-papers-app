@@ -2838,3 +2838,57 @@ main {
     min-height: 40px;
   }
 }
+/* نافذة اختيار طريقة إضافة صورة الورقة */
+
+.source-picker-modal {
+  position: relative;
+  width: min(100%, 280px);
+  padding: 24px 18px 18px;
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 28%);
+}
+
+.source-picker-modal h2 {
+  margin: 0 0 16px;
+  padding-left: 58px;
+  color: #0f3d68;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.source-picker-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.source-picker-actions button {
+  display: grid;
+  min-height: 78px;
+  place-items: center;
+  padding: 8px;
+  border-radius: 13px;
+  color: white;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.source-camera-button {
+  background: #0f766e;
+}
+
+.source-file-button {
+  background: #2563eb;
+}
+
+@media (max-width: 650px) {
+  .source-picker-modal {
+    width: min(100%, 300px);
+  }
+
+  .source-picker-actions button {
+    min-height: 88px;
+    font-size: 2rem;
+  }
+}
