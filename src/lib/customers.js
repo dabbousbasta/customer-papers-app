@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { logActivity } from './activity'
 
 function normalizeCustomerName(value) {
   return value
@@ -45,8 +46,10 @@ export async function createCustomer({
   phone,
   notes
 }) {
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession()
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await supabase.auth.getSession()
 
   if (sessionError) {
     throw sessionError
@@ -83,6 +86,26 @@ export async function createCustomer({
     throw error
   }
 
+  try {
+    await logActivity({
+      actionType: 'customer_created',
+      entityType: 'customer',
+      entityId: data.id,
+      customerId: data.id,
+      summary: `إضافة زبون جديد: ${data.name}`,
+      details: {
+        name: data.name,
+        phone: data.phone,
+        notes: data.notes
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل عملية إضافة الزبون',
+      activityError
+    )
+  }
+
   return data
 }
 
@@ -92,8 +115,10 @@ export async function updateCustomer({
   phone,
   notes
 }) {
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession()
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await supabase.auth.getSession()
 
   if (sessionError) {
     throw sessionError
@@ -129,12 +154,34 @@ export async function updateCustomer({
     throw error
   }
 
+  try {
+    await logActivity({
+      actionType: 'customer_updated',
+      entityType: 'customer',
+      entityId: data.id,
+      customerId: data.id,
+      summary: `تعديل بيانات الزبون: ${data.name}`,
+      details: {
+        name: data.name,
+        phone: data.phone,
+        notes: data.notes
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل تعديل بيانات الزبون',
+      activityError
+    )
+  }
+
   return data
 }
 
 export async function archiveCustomer(customerId) {
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession()
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await supabase.auth.getSession()
 
   if (sessionError) {
     throw sessionError
@@ -161,12 +208,32 @@ export async function archiveCustomer(customerId) {
     throw error
   }
 
+  try {
+    await logActivity({
+      actionType: 'customer_archived',
+      entityType: 'customer',
+      entityId: data.id,
+      customerId: data.id,
+      summary: `أرشفة الزبون: ${data.name}`,
+      details: {
+        name: data.name
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل أرشفة الزبون',
+      activityError
+    )
+  }
+
   return data
 }
 
 export async function restoreCustomer(customerId) {
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession()
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await supabase.auth.getSession()
 
   if (sessionError) {
     throw sessionError
@@ -191,6 +258,24 @@ export async function restoreCustomer(customerId) {
 
   if (error) {
     throw error
+  }
+
+  try {
+    await logActivity({
+      actionType: 'customer_restored',
+      entityType: 'customer',
+      entityId: data.id,
+      customerId: data.id,
+      summary: `إلغاء أرشفة الزبون: ${data.name}`,
+      details: {
+        name: data.name
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل إلغاء أرشفة الزبون',
+      activityError
+    )
   }
 
   return data

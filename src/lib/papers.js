@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { logActivity } from './activity'
 
 export async function getCurrentUser() {
   const {
@@ -15,6 +16,42 @@ export async function getCurrentUser() {
   }
 
   return user
+}
+
+async function getPaperActivityInfo(paperId) {
+  const { data, error } = await supabase
+    .from('papers')
+    .select(`
+      id,
+      customer_id,
+      paper_date,
+      total_amount,
+      status,
+      image_path,
+      customers (
+        name
+      )
+    `)
+    .eq('id', paperId)
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+function getCustomerName(paper) {
+  return paper?.customers?.name || 'زبون غير معروف'
+}
+
+function formatAmount(amount) {
+  if (amount === null || amount === undefined) {
+    return 'بدون قيمة'
+  }
+
+  return Number(amount).toFixed(2)
 }
 
 export async function getPapers({
@@ -94,6 +131,34 @@ export async function createPaper({
     throw error
   }
 
+  try {
+    const paper = await getPaperActivityInfo(data.id)
+    const customerName = getCustomerName(paper)
+
+    await logActivity({
+      actionType: 'paper_created',
+      entityType: 'paper',
+      entityId: data.id,
+      customerId: data.customer_id,
+      paperId: data.id,
+      summary:
+        `إضافة ورقة للزبون: ${customerName} ` +
+        `بقيمة ${formatAmount(data.total_amount)}`,
+      details: {
+        paper_date: data.paper_date,
+        total_amount: data.total_amount,
+        note: data.note,
+        has_image: Boolean(data.image_path),
+        status: data.status
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل إضافة الورقة',
+      activityError
+    )
+  }
+
   return data
 }
 
@@ -102,6 +167,8 @@ export async function updatePaperAmount(
   totalAmount
 ) {
   const user = await getCurrentUser()
+
+  const oldPaper = await getPaperActivityInfo(paperId)
 
   const numericAmount =
     totalAmount === '' ||
@@ -131,6 +198,32 @@ export async function updatePaperAmount(
     throw error
   }
 
+  try {
+    const customerName = getCustomerName(oldPaper)
+
+    await logActivity({
+      actionType: 'paper_amount_updated',
+      entityType: 'paper',
+      entityId: data.id,
+      customerId: data.customer_id,
+      paperId: data.id,
+      summary:
+        `تعديل قيمة ورقة الزبون: ${customerName} ` +
+        `من ${formatAmount(oldPaper.total_amount)} ` +
+        `إلى ${formatAmount(data.total_amount)}`,
+      details: {
+        paper_date: data.paper_date,
+        old_total_amount: oldPaper.total_amount,
+        new_total_amount: data.total_amount
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل تعديل قيمة الورقة',
+      activityError
+    )
+  }
+
   return data
 }
 
@@ -139,6 +232,8 @@ export async function updatePaperImagePath(
   imagePath
 ) {
   const user = await getCurrentUser()
+
+  const oldPaper = await getPaperActivityInfo(paperId)
 
   const { data, error } = await supabase
     .from('papers')
@@ -152,6 +247,40 @@ export async function updatePaperImagePath(
 
   if (error) {
     throw error
+  }
+
+  try {
+    const customerName = getCustomerName(oldPaper)
+    const actionType = imagePath
+      ? oldPaper.image_path
+        ? 'paper_image_replaced'
+        : 'paper_image_added'
+      : 'paper_image_removed'
+
+    const actionLabel = imagePath
+      ? oldPaper.image_path
+        ? 'استبدال صورة'
+        : 'إضافة صورة'
+      : 'حذف صورة'
+
+    await logActivity({
+      actionType,
+      entityType: 'paper',
+      entityId: data.id,
+      customerId: data.customer_id,
+      paperId: data.id,
+      summary: `${actionLabel} ورقة الزبون: ${customerName}`,
+      details: {
+        paper_date: data.paper_date,
+        had_previous_image: Boolean(oldPaper.image_path),
+        has_current_image: Boolean(imagePath)
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل تغيير صورة الورقة',
+      activityError
+    )
   }
 
   return data
