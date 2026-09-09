@@ -43,6 +43,10 @@ import {
 } from './lib/storage'
 import { createPayment } from './lib/payments'
 import {
+  getActivitiesForDate,
+  getActivityUserName
+} from './lib/activity'
+import {
   buildCustomerWhatsAppReport,
   openWhatsAppMessage
 } from './lib/whatsapp'
@@ -152,7 +156,16 @@ function App() {
         }
       />
 
-      <Route
+            <Route
+        path="/activities"
+        element={
+          <ActivitiesPage
+            session={session}
+            signOut={signOut}
+          />
+        }
+      />
+<Route
         path="*"
         element={<Navigate to="/" replace />}
       />
@@ -352,6 +365,15 @@ function Header({
             title="اختيار زبون آخر"
           >
             ⌂
+          </Link>
+
+                    <Link
+            to="/activities"
+            className="header-icon-button activities-header-button"
+            aria-label="سجل العمليات"
+            title="سجل العمليات"
+          >
+            ◷
           </Link>
 
           <div className="backup-actions">
@@ -1091,6 +1113,125 @@ function HomeSummary() {
         </strong>
       </article>
     </section>
+  )
+}
+
+function ActivitiesPage({ session, signOut }) {
+  const navigate = useNavigate()
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    loadActivities()
+  }, [selectedDate])
+
+  async function loadActivities() {
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const data = await getActivitiesForDate(selectedDate)
+      setActivities(data || [])
+    } catch (error) {
+      setMessage(error.message)
+      setActivities([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openActivity(activity) {
+    if (activity.paper_id && activity.customer_id) {
+      navigate(
+        `/customer/${activity.customer_id}/papers?openPaper=${activity.paper_id}`
+      )
+      return
+    }
+
+    if (activity.customer_id) {
+      navigate(`/customer/${activity.customer_id}/papers`)
+    }
+  }
+
+  function formatActivityTime(createdAt) {
+    return new Date(createdAt).toLocaleTimeString('ar-LB', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  return (
+    <main dir="rtl" className="app-page">
+      <Header
+        session={session}
+        signOut={signOut}
+        title="سجل العمليات"
+      />
+
+      <section className="activities-toolbar">
+        <label className="activities-date-label">
+          التاريخ
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) =>
+              setSelectedDate(event.target.value)
+            }
+          />
+        </label>
+      </section>
+
+      {message && (
+        <p className="message error">{message}</p>
+      )}
+
+      {loading ? (
+        <div className="empty-card">
+          جارٍ تحميل العمليات...
+        </div>
+      ) : activities.length === 0 ? (
+        <div className="empty-card">
+          لا يوجد عمليات بهذا التاريخ
+        </div>
+      ) : (
+        <ul className="activities-list">
+          {activities.map((activity) => {
+            const isClickable = Boolean(
+              activity.customer_id
+            )
+
+            return (
+              <li key={activity.id}>
+                <button
+                  type="button"
+                  className="activity-item"
+                  onClick={() => openActivity(activity)}
+                  disabled={!isClickable}
+                >
+                  <span className="activity-time">
+                    {formatActivityTime(
+                      activity.created_at
+                    )}
+                  </span>
+
+                  <span className="activity-summary">
+                    {activity.summary}
+                  </span>
+
+                  <span className="activity-user">
+                    {getActivityUserName(activity)}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </main>
   )
 }
 
@@ -1911,6 +2052,33 @@ useEffect(() => {
   navigate
 ])
 
+
+    useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const openPaperId = params.get('openPaper')
+
+    if (!openPaperId) {
+      return
+    }
+
+    const matchingPaper = papers.find(
+      (paper) => String(paper.id) === openPaperId
+    )
+
+    if (matchingPaper) {
+      openDetails(matchingPaper)
+
+      navigate(
+        `/customer/${customer.id}/papers`,
+        { replace: true }
+      )
+    }
+  }, [
+    location.search,
+    papers,
+    customer.id,
+    navigate
+  ])
 
   async function loadPapers() {
     try {
