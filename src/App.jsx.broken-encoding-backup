@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState
-} from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Link,
   Navigate,
@@ -42,10 +38,6 @@ import {
   uploadPaperImage
 } from './lib/storage'
 import { createPayment } from './lib/payments'
-import {
-  getActivitiesForDate,
-  getActivityUserName
-} from './lib/activity'
 import {
   buildCustomerWhatsAppReport,
   openWhatsAppMessage
@@ -125,7 +117,7 @@ function App() {
   if (loading) {
     return (
       <main dir="rtl" className="page-center">
-        <p>جارٍ التحميل...</p>
+        <p>???????? ???"?????.???"...</p>
       </main>
     )
   }
@@ -156,16 +148,7 @@ function App() {
         }
       />
 
-            <Route
-        path="/activities"
-        element={
-          <ActivitiesPage
-            session={session}
-            signOut={signOut}
-          />
-        }
-      />
-<Route
+      <Route
         path="*"
         element={<Navigate to="/" replace />}
       />
@@ -193,7 +176,7 @@ function LoginPage() {
       })
 
     if (error) {
-      setMessage(`فشل تسجيل الدخول: ${error.message}`)
+      setMessage(`?????" ?????????" ???"?????^?": ${error.message}`)
     }
 
     setSaving(false)
@@ -202,12 +185,12 @@ function LoginPage() {
   return (
     <main dir="rtl" className="auth-page">
       <section className="auth-card">
-        <h1>دبوس البسطة</h1>
-        <p>نظام أوراق الزبائن</p>
+        <h1>?????^?? ???"????????</h1>
+        <p>???????. ???^?????, ???"??????????</p>
 
         <form onSubmit={login}>
           <label>
-            البريد الإلكتروني
+            ???"???????? ???"???"?f?????^????
             <input
               type="email"
               value={email}
@@ -220,7 +203,7 @@ function LoginPage() {
           </label>
 
           <label>
-            كلمة المرور
+            ?f?"?.?? ???"?.???^??
 
             <div className="password-input-wrap">
               <input
@@ -243,24 +226,24 @@ function LoginPage() {
                 }
                 aria-label={
                   showPassword
-                    ? 'إخفاء كلمة المرور'
-                    : 'إظهار كلمة المرور'
+                    ? '?????????? ?f?"?.?? ???"?.???^??'
+                    : '?????????? ?f?"?.?? ???"?.???^??'
                 }
                 title={
                   showPassword
-                    ? 'إخفاء كلمة المرور'
-                    : 'إظهار كلمة المرور'
+                    ? '?????????? ?f?"?.?? ???"?.???^??'
+                    : '?????????? ?f?"?.?? ???"?.???^??'
                 }
               >
-                {showPassword ? '◉' : '◌'}
+                {showPassword ? '?-?' : '?-O'}
               </button>
             </div>
           </label>
 
           <button type="submit" disabled={saving}>
             {saving
-              ? 'جارٍ الدخول...'
-              : 'تسجيل الدخول'}
+              ? '???????? ???"?????^?"...'
+              : '?????????" ???"?????^?"'}
           </button>
         </form>
 
@@ -285,13 +268,13 @@ function Header({
 
   async function handleBackup(includeImages) {
     const confirmationMessage = includeImages
-      ? 'سيتم تنزيل نسخة كاملة تشمل كل الزبائن والأوراق ' +
-        'والدفعات والصور الحالية وصور السجل. قد يستغرق ' +
-        'ذلك وقتًا إذا كان عدد الصور كبيرًا.\n\n' +
-        'هل تريد المتابعة؟'
-      : 'سيتم تنزيل نسخة سريعة تشمل كل الزبائن والأوراق ' +
-        'والدفعات، ولكن من دون الصور. هذه النسخة مناسبة ' +
-        'للحفظ اليومي.\n\nهل تريد المتابعة؟'
+      ? '???????. ?????????" ???????? ?f???.?"?? ?????.?" ?f?" ???"?????????? ?^???"???^?????, ' +
+        '?^???"?????????? ?^???"???^?? ???"?????"???? ?^???^?? ???"?????". ?,?? ???????????, ' +
+        '???"?f ?^?,???<?? ?????? ?f???? ?????? ???"???^?? ?f???????<??.\n\n' +
+        '???" ???????? ???"?.????????????'
+      : '???????. ?????????" ???????? ?????????? ?????.?" ?f?" ???"?????????? ?^???"???^?????, ' +
+        '?^???"???????????O ?^?"?f?? ?.?? ???^?? ???"???^??. ?????? ???"???????? ?.?????????? ' +
+        '?"?"?????? ???"???^?.??.\n\n???" ???????? ???"?.????????????'
 
     const confirmed = window.confirm(
       confirmationMessage
@@ -306,8 +289,8 @@ function Header({
 
     setBackupStatus(
       includeImages
-        ? 'جارٍ تجهيز النسخة الكاملة مع الصور...'
-        : 'جارٍ تجهيز النسخة السريعة بدون الصور...'
+        ? '???????? ?????????? ???"???????? ???"?f???.?"?? ?.?? ???"???^??...'
+        : '???????? ?????????? ???"???????? ???"?????????? ?????^?? ???"???^??...'
     )
 
     try {
@@ -320,25 +303,25 @@ function Header({
 
       const failedCount = result.failedImages.length
       const imagePart = includeImages
-        ? `، ${result.imagesCount} صورة`
+        ? `?O ${result.imagesCount} ???^????`
         : ''
 
       const failedPart = failedCount
-        ? `، وتعذر تنزيل ${failedCount} صورة`
+        ? `?O ?^???????? ?????????" ${failedCount} ???^????`
         : ''
 
       setBackupStatus(
-        `تم تنزيل النسخة ` +
-        `${includeImages ? 'الكاملة مع الصور' : 'السريعة بدون الصور'} ` +
-        `بنجاح: ${result.customersCount} زبون، ` +
-        `${result.papersCount} ورقة، ` +
-        `${result.paymentsCount} دفعة` +
+        `???. ?????????" ???"???????? ` +
+        `${includeImages ? '???"?f???.?"?? ?.?? ???"???^??' : '???"?????????? ?????^?? ???"???^??'} ` +
+        `??????????: ${result.customersCount} ?????^???O ` +
+        `${result.papersCount} ?^???,???O ` +
+        `${result.paymentsCount} ????????` +
         imagePart +
         failedPart
       )
     } catch (error) {
       setBackupStatus(
-        `فشل إنشاء النسخة الاحتياطية: ${error.message}`
+        `?????" ?????????? ???"???????? ???"????????????????: ${error.message}`
       )
     } finally {
       setCreatingBackup(false)
@@ -350,7 +333,7 @@ function Header({
       <header className="topbar compact-topbar">
         <div className="topbar-brand">
           <Link to="/" className="app-brand-link">
-            دبوس البسطة
+            ?????^?? ???"????????
           </Link>
 
           <h1>{title}</h1>
@@ -361,19 +344,10 @@ function Header({
           <Link
             to="/"
             className="header-icon-button home-header-button"
-            aria-label="اختيار زبون آخر"
-            title="اختيار زبون آخر"
+            aria-label="???????????? ?????^?? ??????"
+            title="???????????? ?????^?? ??????"
           >
-            ⌂
-          </Link>
-
-                    <Link
-            to="/activities"
-            className="header-icon-button activities-header-button"
-            aria-label="سجل العمليات"
-            title="سجل العمليات"
-          >
-            ◷
+            ?O,
           </Link>
 
           <div className="backup-actions">
@@ -386,35 +360,35 @@ function Header({
               }
               className="header-icon-button backup-button"
               disabled={creatingBackup}
-              aria-label="نسخة احتياطية"
-              title="نسخة احتياطية"
+              aria-label="???????? ????????????????"
+              title="???????? ????????????????"
             >
-              {creatingBackup ? '…' : '⤓'}
+              {creatingBackup ? '???' : '?"'}
             </button>
 
            {showBackupOptions && !creatingBackup && (
   <div
     className="backup-options compact-backup-options"
-    aria-label="اختيار نوع النسخة الاحتياطية"
+    aria-label="???????????? ???^?? ???"???????? ???"????????????????"
   >
     <button
       type="button"
       className="backup-quick-option"
       onClick={() => handleBackup(false)}
-      aria-label="نسخة احتياطية سريعة بدون الصور"
-      title="نسخة سريعة بدون الصور"
+      aria-label="???????? ???????????????? ?????????? ?????^?? ???"???^??"
+      title="???????? ?????????? ?????^?? ???"???^??"
     >
-      ⚡
+      ???
     </button>
 
     <button
       type="button"
       className="backup-full-option"
       onClick={() => handleBackup(true)}
-      aria-label="نسخة احتياطية كاملة مع الصور"
-      title="نسخة كاملة مع الصور"
+      aria-label="???????? ???????????????? ?f???.?"?? ?.?? ???"???^??"
+      title="???????? ?f???.?"?? ?.?? ???"???^??"
     >
-      🗃
+      ??-f
     </button>
   </div>
 )}
@@ -425,10 +399,10 @@ function Header({
             onClick={signOut}
             className="header-icon-button secondary-button"
             disabled={creatingBackup}
-            aria-label="تسجيل الخروج"
-            title="تسجيل الخروج"
+            aria-label="?????????" ???"?????^??"
+            title="?????????" ???"?????^??"
           >
-            ⇥
+            ???
           </button>
         </div>
       </header>
@@ -436,7 +410,7 @@ function Header({
       {backupStatus && (
         <p
           className={
-            backupStatus.startsWith('فشل')
+            backupStatus.startsWith('?????"')
               ? 'message error backup-status'
               : 'message backup-status'
           }
@@ -472,13 +446,9 @@ function CustomerSelectPage({
     useState(false)
   const [paperPickerCustomer, setPaperPickerCustomer] =
     useState(null)
-  const [openPapers, setOpenPapers] = useState([])
-  const [sortBy, setSortBy] = useState('name')
-  const [sortDirection, setSortDirection] = useState('asc')
 
   useEffect(() => {
     loadCustomers('', false)
-    loadOpenPapers()
     loadRecentCustomers()
   }, [])
 
@@ -500,22 +470,6 @@ function CustomerSelectPage({
     }
 
     setLoading(false)
-  }
-
-    async function loadOpenPapers() {
-    try {
-      const data = await getPapers({
-        includeArchived: false
-      })
-
-      setOpenPapers(
-        (data || []).filter(
-          (paper) => paper.status === 'open'
-        )
-      )
-    } catch {
-      setOpenPapers([])
-    }
   }
 
   function loadRecentCustomers() {
@@ -578,7 +532,7 @@ function CustomerSelectPage({
   function openCustomer(customer) {
     if (customer.is_archived) {
       setMessage(
-        'هذا الزبون مؤرشف. ألغِ الأرشفة أولًا لفتحه.'
+        '?????? ???"?????^?? ?.????????. ???"???? ???"?????????? ???^?"?<?? ?"????????.'
       )
       return
     }
@@ -591,7 +545,7 @@ function CustomerSelectPage({
   function openQuickPaper(customer) {
     if (customer.is_archived) {
       setMessage(
-        'لا يمكن إضافة ورقة لزبون مؤرشف. ألغِ الأرشفة أولًا.'
+        '?"?? ???.?f?? ?????????? ?^???,?? ?"?????^?? ?.????????. ???"???? ???"?????????? ???^?"?<??.'
       )
       return
     }
@@ -629,7 +583,7 @@ function CustomerSelectPage({
     event.preventDefault()
 
     if (!newCustomerName.trim()) {
-      setMessage('اسم الزبون مطلوب')
+      setMessage('?????. ???"?????^?? ?.???"?^??')
       return
     }
 
@@ -667,13 +621,13 @@ function CustomerSelectPage({
 
   async function restoreArchivedCustomer(customer) {
     try {
-      setMessage('جارٍ إلغاء أرشفة الزبون...')
+      setMessage('???????? ???"?????? ?????????? ???"?????^??...')
 
       await restoreCustomer(customer.id)
       removeRecentCustomer(customer.id)
 
       setMessage(
-        `تم إلغاء أرشفة الزبون: ${customer.name}`
+        `???. ???"?????? ?????????? ???"?????^??: ${customer.name}`
       )
 
       await loadCustomers(search, true)
@@ -682,48 +636,12 @@ function CustomerSelectPage({
     }
   }
 
-    function getCustomerOpenStats(customerId) {
-    const customerPapers = openPapers.filter(
-      (paper) => paper.customer_id === customerId
-    )
-
-    const value = customerPapers.reduce(
-      (sum, paper) =>
-        sum + Number(paper.total_amount || 0),
-      0
-    )
-
-    return {
-      count: customerPapers.length,
-      value
-    }
-  }
-
-  const sortedCustomers = [...customers].sort(
-    (a, b) => {
-      let result = 0
-
-      if (sortBy === 'name') {
-        result = a.name.localeCompare(b.name, 'ar')
-      } else if (sortBy === 'count') {
-        result =
-          getCustomerOpenStats(a.id).count -
-          getCustomerOpenStats(b.id).count
-      } else if (sortBy === 'value') {
-        result =
-          getCustomerOpenStats(a.id).value -
-          getCustomerOpenStats(b.id).value
-      }
-
-      return sortDirection === 'asc' ? result : -result
-    }
-  )
-return (
+  return (
     <main dir="rtl" className="app-page">
       <Header
         session={session}
         signOut={signOut}
-        title="اختيار الزبون"
+        title="???????????? ???"?????^??"
       />
 
       <section className="compact-customer-toolbar">
@@ -731,8 +649,8 @@ return (
           type="search"
           placeholder={
             showArchived
-              ? 'ابحث عن زبون مؤرشف...'
-              : 'ابحث عن اسم الزبون...'
+              ? '???????? ???? ?????^?? ?.????????...'
+              : '???????? ???? ?????. ???"?????^??...'
           }
           value={search}
           onChange={(event) => {
@@ -743,8 +661,8 @@ return (
           }}
           aria-label={
             showArchived
-              ? 'البحث عن زبون مؤرشف'
-              : 'البحث عن زبون'
+              ? '???"?????? ???? ?????^?? ?.????????'
+              : '???"?????? ???? ?????^??'
           }
         />
 
@@ -757,16 +675,16 @@ return (
           disabled={showArchived}
           aria-label={
             showNewCustomerForm
-              ? 'إلغاء إضافة زبون جديد'
-              : 'إضافة زبون جديد'
+              ? '???"?????? ?????????? ?????^?? ????????'
+              : '?????????? ?????^?? ????????'
           }
           title={
             showNewCustomerForm
-              ? 'إلغاء إضافة زبون جديد'
-              : 'إضافة زبون جديد'
+              ? '???"?????? ?????????? ?????^?? ????????'
+              : '?????????? ?????^?? ????????'
           }
         >
-          {showNewCustomerForm ? '×' : '+'}
+          {showNewCustomerForm ? '?-' : '+'}
         </button>
 
         <button
@@ -775,74 +693,36 @@ return (
           onClick={changeArchivedView}
           aria-label={
             showArchived
-              ? 'العودة إلى الزبائن النشطين'
-              : 'عرض أرشيف الزبائن'
+              ? '???"???^???? ???"?? ???"?????????? ???"??????????'
+              : '?????? ?????????? ???"??????????'
           }
           title={
             showArchived
-              ? 'العودة إلى الزبائن النشطين'
-              : 'أرشيف الزبائن'
+              ? '???"???^???? ???"?? ???"?????????? ???"??????????'
+              : '?????????? ???"??????????'
           }
         >
-          {showArchived ? '↩' : '🗃'}
-        </button>
-      </section>
-
-      <section className="compact-sort-toolbar">
-        <label>
-          الترتيب حسب
-          <select
-            value={sortBy}
-            onChange={(event) =>
-              setSortBy(event.target.value)
-            }
-          >
-            <option value="name">الاسم</option>
-            <option value="count">عدد الأوراق</option>
-            <option value="value">القيمة</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          className="sort-direction-button"
-          onClick={() =>
-            setSortDirection(
-              sortDirection === 'asc' ? 'desc' : 'asc'
-            )
-          }
-          aria-label={
-            sortDirection === 'asc'
-              ? 'ترتيب تصاعدي'
-              : 'ترتيب تنازلي'
-          }
-          title={
-            sortDirection === 'asc'
-              ? 'تصاعدي'
-              : 'تنازلي'
-          }
-        >
-          {sortDirection === 'asc' ? '↑' : '↓'}
+          {showArchived ? '???' : '??-f'}
         </button>
       </section>
 
       {showNewCustomerForm && !showArchived && (
         <section className="form-card new-customer-form-card">
           <div className="form-card-title-row">
-            <h2>إضافة زبون جديد</h2>
+            <h2>?????????? ?????^?? ????????</h2>
 
             <button
               type="button"
               className="form-close-button"
               onClick={cancelNewCustomer}
             >
-              إغلاق
+              ?????"???,
             </button>
           </div>
 
           <form onSubmit={saveNewCustomer}>
             <label>
-              اسم الزبون
+              ?????. ???"?????^??
               <input
                 type="text"
                 value={newCustomerName}
@@ -854,7 +734,7 @@ return (
             </label>
 
             <label>
-              رقم الهاتف
+              ???,?. ???"????????
               <input
                 type="tel"
                 value={newCustomerPhone}
@@ -865,7 +745,7 @@ return (
             </label>
 
             <label>
-              ملاحظات
+              ?.?"??????????
               <textarea
                 value={newCustomerNotes}
                 onChange={(event) =>
@@ -880,8 +760,8 @@ return (
               disabled={savingCustomer}
             >
               {savingCustomer
-                ? 'جارٍ حفظ الزبون...'
-                : 'حفظ الزبون وفتح أوراقه'}
+                ? '???????? ?????? ???"?????^??...'
+                : '?????? ???"?????^?? ?^?????? ???^?????,??'}
             </button>
           </form>
         </section>
@@ -896,14 +776,14 @@ return (
       {!showArchived && recentCustomers.length > 0 && (
         <section className="compact-customer-section">
           <div className="compact-list-heading">
-            <h2>آخر الزبائن</h2>
+            <h2>?????? ???"??????????</h2>
 
             <button
               type="button"
               className="clear-recent-button"
               onClick={clearRecentCustomers}
             >
-              مسح
+              ?.????
             </button>
           </div>
 
@@ -929,8 +809,8 @@ return (
                   type="button"
                   className="compact-paper-add-button"
                   onClick={() => openQuickPaper(customer)}
-                  aria-label={`إضافة ورقة للزبون ${customer.name}`}
-                  title={`إضافة ورقة للزبون ${customer.name}`}
+                  aria-label={`?????????? ?^???,?? ?"?"?????^?? ${customer.name}`}
+                  title={`?????????? ?^???,?? ?"?"?????^?? ${customer.name}`}
                 >
                   +
                 </button>
@@ -944,33 +824,28 @@ return (
         <div className="compact-list-heading">
           <h2>
             {showArchived
-              ? 'الزبائن المؤرشفون'
+              ? '???"?????????? ???"?.?????????^??'
               : search.trim()
-                ? 'نتائج البحث'
-                : 'كل الزبائن'}
+                ? '?????????? ???"??????'
+                : '?f?" ???"??????????'}
           </h2>
         </div>
 
         {loading ? (
           <div className="empty-card">
-            جارٍ تحميل الزبائن...
+            ???????? ?????.???" ???"??????????...
           </div>
         ) : customers.length === 0 ? (
           <div className="empty-card">
             {showArchived
-              ? 'لا يوجد زبائن مؤرشفون'
+              ? '?"?? ???^???? ?????????? ?.?????????^??'
               : search.trim()
-                ? 'لا توجد نتائج مطابقة'
-                : 'لا يوجد زبائن'}
+                ? '?"?? ???^???? ?????????? ?.???????,??'
+                : '?"?? ???^???? ??????????'}
           </div>
         ) : (
           <div className="compact-customer-list">
-                        {sortedCustomers.map((customer) => {
-              const openStats = getCustomerOpenStats(
-                customer.id
-              )
-
-              return (
+            {customers.map((customer) => (
               <article
                 className="compact-customer-row"
                 key={customer.id}
@@ -982,8 +857,8 @@ return (
                   disabled={customer.is_archived}
                   title={
                     customer.is_archived
-                      ? 'الزبون مؤرشف، ألغِ الأرشفة أولًا'
-                      : `فتح أوراق ${customer.name}`
+                      ? '???"?????^?? ?.?????????O ???"???? ???"?????????? ???^?"?<??'
+                      : `?????? ???^?????, ${customer.name}`
                   }
                 >
                   <strong>{customer.name}</strong>
@@ -993,15 +868,6 @@ return (
                   )}
                 </button>
 
-                {!showArchived && openStats.count > 0 && (
-                  <span className="compact-customer-balance">
-                    <small>{openStats.count} ورقة</small>
-                    <strong>
-                      {openStats.value.toFixed(2)}
-                    </strong>
-                  </span>
-                )}
-
                 {showArchived ? (
                   <button
                     type="button"
@@ -1010,13 +876,13 @@ return (
                       restoreArchivedCustomer(customer)
                     }
                     aria-label={
-                      `إلغاء أرشفة الزبون ${customer.name}`
+                      `???"?????? ?????????? ???"?????^?? ${customer.name}`
                     }
                     title={
-                      `إلغاء أرشفة الزبون ${customer.name}`
+                      `???"?????? ?????????? ???"?????^?? ${customer.name}`
                     }
                   >
-                    ↺
+                    ???
                   </button>
                 ) : (
                   <button
@@ -1024,22 +890,20 @@ return (
                     className="compact-paper-add-button"
                     onClick={() => openQuickPaper(customer)}
                     aria-label={
-                      `إضافة ورقة للزبون ${customer.name}`
+                      `?????????? ?^???,?? ?"?"?????^?? ${customer.name}`
                     }
                     title={
-                      `إضافة ورقة للزبون ${customer.name}`
+                      `?????????? ?^???,?? ?"?"?????^?? ${customer.name}`
                     }
                   >
                     +
                   </button>
                 )}
               </article>
-              )
-            })}
+            ))}
           </div>
         )}
       </section>
-
       {paperPickerCustomer && (
         <div className="modal-backdrop">
           <section className="source-picker-modal">
@@ -1047,13 +911,13 @@ return (
               type="button"
               className="close-button"
               onClick={() => setPaperPickerCustomer(null)}
-              aria-label="إغلاق"
-              title="إغلاق"
+              aria-label="?????"???,"
+              title="?????"???,"
             >
-              ×
+              ?-
             </button>
 
-            <h2>إضافة ورقة</h2>
+            <h2>?????????? ?^???,??</h2>
 
             <div className="source-picker-actions">
               <button
@@ -1063,11 +927,11 @@ return (
                   chooseHomePaperSource('camera')
                 }
                 aria-label={
-                  `تصوير ورقة للزبون ${paperPickerCustomer.name}`
+                  `?????^???? ?^???,?? ?"?"?????^?? ${paperPickerCustomer.name}`
                 }
-                title="تصوير بالكاميرا"
+                title="?????^???? ?????"?f???.??????"
               >
-                📷
+                ??"?
               </button>
 
               <button
@@ -1077,11 +941,11 @@ return (
                   chooseHomePaperSource('file')
                 }
                 aria-label={
-                  `اختيار صورة للزبون ${paperPickerCustomer.name}`
+                  `???????????? ???^???? ?"?"?????^?? ${paperPickerCustomer.name}`
                 }
-                title="اختيار صورة أو ملف"
+                title="???????????? ???^???? ???^ ?.?"??"
               >
-                🖼
+                ??-?
               </button>
             </div>
           </section>
@@ -1128,7 +992,7 @@ function HomeSummary() {
     return (
       <section className="compact-summary home-summary">
         <span className="compact-summary-loading">
-          جارٍ تحميل الملخص...
+          ???????? ?????.???" ???"?.?"????...
         </span>
       </section>
     )
@@ -1152,32 +1016,34 @@ function HomeSummary() {
     (paper) =>
       paper.total_amount !== null &&
       paper.total_amount !== undefined &&
-      Number(paper.total_amount) !== 0
+      paper.total_amount !== ''
   )
 
-  const unpricedOpenPapersCount =
-    openPapers.length - pricedOpenPapers.length
+  const unpricedOpenPapers = openPapers.filter(
+    (paper) =>
+      paper.total_amount === null ||
+      paper.total_amount === undefined ||
+      paper.total_amount === ''
+  )
 
-  const openPapersTotalAmount = pricedOpenPapers.reduce(
-    (sum, paper) =>
-      sum + Number(paper.total_amount || 0),
-    0
+  const openBalance = getOpenBalanceTotal(
+    pricedOpenPapers
   )
 
   return (
     <section
       className="compact-summary home-summary"
-      aria-label="ملخص الأوراق المفتوحة"
+      aria-label="?.?"???? ???"???^?????, ???"?.?????^????"
     >
       <article className="compact-summary-item">
         <span
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          👤
+          ??'?
         </span>
         <span className="compact-summary-label">
-          زبائن
+          ??????????
         </span>
         <strong>{customersWithOpenPapers.size}</strong>
       </article>
@@ -1187,12 +1053,12 @@ function HomeSummary() {
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ◉
+          ?,?
         </span>
         <span className="compact-summary-label">
-          الأوراق
+          ???^?????, ?.?????'????
         </span>
-        <strong>{openPapers.length}</strong>
+        <strong>{pricedOpenPapers.length}</strong>
       </article>
 
       <article className="compact-summary-item">
@@ -1200,12 +1066,12 @@ function HomeSummary() {
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ◌
+          ?-O
         </span>
         <span className="compact-summary-label">
-          غير مسعر
+          ???^?????, ?????? ?.?????'????
         </span>
-        <strong>{unpricedOpenPapersCount}</strong>
+        <strong>{unpricedOpenPapers.length}</strong>
       </article>
 
       <article className="compact-summary-item balance-summary-item">
@@ -1213,135 +1079,14 @@ function HomeSummary() {
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ₿
+          ?-^
         </span>
         <span className="compact-summary-label">
-          القيمة
+          ???????? ???"???^?????, ???"?.?????^????
         </span>
-        <strong>
-          {openPapersTotalAmount.toFixed(2)}
-        </strong>
+        <strong>{openBalance.toFixed(2)}</strong>
       </article>
     </section>
-  )
-}
-
-function ActivitiesPage({ session, signOut }) {
-  const navigate = useNavigate()
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  )
-  const [activities, setActivities] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    loadActivities()
-  }, [selectedDate])
-
-  async function loadActivities() {
-    setLoading(true)
-    setMessage('')
-
-    try {
-      const data = await getActivitiesForDate(selectedDate)
-      setActivities(data || [])
-    } catch (error) {
-      setMessage(error.message)
-      setActivities([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function openActivity(activity) {
-    if (activity.paper_id && activity.customer_id) {
-      navigate(
-        `/customer/${activity.customer_id}/papers?openPaper=${activity.paper_id}`
-      )
-      return
-    }
-
-    if (activity.customer_id) {
-      navigate(`/customer/${activity.customer_id}/papers`)
-    }
-  }
-
-  function formatActivityTime(createdAt) {
-    return new Date(createdAt).toLocaleTimeString('ar-LB', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  return (
-    <main dir="rtl" className="app-page">
-      <Header
-        session={session}
-        signOut={signOut}
-        title="سجل العمليات"
-      />
-
-      <section className="activities-toolbar">
-        <label className="activities-date-label">
-          التاريخ
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(event) =>
-              setSelectedDate(event.target.value)
-            }
-          />
-        </label>
-      </section>
-
-      {message && (
-        <p className="message error">{message}</p>
-      )}
-
-      {loading ? (
-        <div className="empty-card">
-          جارٍ تحميل العمليات...
-        </div>
-      ) : activities.length === 0 ? (
-        <div className="empty-card">
-          لا يوجد عمليات بهذا التاريخ
-        </div>
-      ) : (
-        <ul className="activities-list">
-          {activities.map((activity) => {
-            const isClickable = Boolean(
-              activity.customer_id
-            )
-
-            return (
-              <li key={activity.id}>
-                <button
-                  type="button"
-                  className="activity-item"
-                  onClick={() => openActivity(activity)}
-                  disabled={!isClickable}
-                >
-                  <span className="activity-time">
-                    {formatActivityTime(
-                      activity.created_at
-                    )}
-                  </span>
-
-                  <span className="activity-summary">
-                    {activity.summary}
-                  </span>
-
-                  <span className="activity-user">
-                    {getActivityUserName(activity)}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </main>
   )
 }
 
@@ -1389,7 +1134,7 @@ function CustomerPage({
   if (loading) {
     return (
       <main dir="rtl" className="page-center">
-        <p>جارٍ تحميل الزبون...</p>
+        <p>???????? ?????.???" ???"?????^??...</p>
       </main>
     )
   }
@@ -1400,11 +1145,11 @@ function CustomerPage({
         <Header
           session={session}
           signOut={signOut}
-          title="الزبون غير موجود"
+          title="???"?????^?? ?????? ?.?^???^??"
         />
 
         <div className="empty-card">
-          لم يتم العثور على الزبون.
+          ?"?. ?????. ???"?????^?? ???"?? ???"?????^??.
         </div>
 
         {message && (
@@ -1425,10 +1170,10 @@ function CustomerPage({
 
         <section className="customer-context-card">
           <div>
-            <span>زبون مؤرشف</span>
+            <span>?????^?? ?.????????</span>
             <h2>{customer.name}</h2>
             <p>
-              هذا الزبون مؤرشف ولا يظهر في البحث العادي.
+              ?????? ???"?????^?? ?.???????? ?^?"?? ???????? ???? ???"?????? ???"????????.
             </p>
           </div>
 
@@ -1436,7 +1181,7 @@ function CustomerPage({
             to="/"
             className="change-customer-button"
           >
-            العودة للزبائن
+            ???"???^???? ?"?"??????????
           </Link>
         </section>
 
@@ -1467,30 +1212,30 @@ function CustomerPage({
 
       <nav
         className="customer-tabs compact-customer-tabs"
-        aria-label="تبويبات الزبون"
+        aria-label="?????^???????? ???"?????^??"
       >
         <Link
           to={`/customer/${customerId}/papers`}
-          title="الأوراق"
-          aria-label="الأوراق"
+          title="???"???^?????,"
+          aria-label="???"???^?????,"
         >
-          ▤
+          ?-?
         </Link>
 
         <Link
           to={`/customer/${customerId}/payments`}
-          title="الدفعات"
-          aria-label="الدفعات"
+          title="???"??????????"
+          aria-label="???"??????????"
         >
-          ↓
+          ??"
         </Link>
 
         <Link
           to={`/customer/${customerId}/report`}
-          title="التقرير"
-          aria-label="التقرير"
+          title="???"???,??????"
+          aria-label="???"???,??????"
         >
-          ◈
+          ?-^
         </Link>
       </nav>
 
@@ -1553,7 +1298,7 @@ function CustomerCompactBar({
     event.preventDefault()
 
     if (!name.trim()) {
-      setMessage('اسم الزبون مطلوب')
+      setMessage('?????. ???"?????^?? ?.???"?^??')
       return
     }
 
@@ -1569,7 +1314,7 @@ function CustomerCompactBar({
       })
 
       setShowEditForm(false)
-      setMessage('تم حفظ بيانات الزبون')
+      setMessage('???. ?????? ???????????? ???"?????^??')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -1580,8 +1325,8 @@ function CustomerCompactBar({
 
   async function archiveCurrentCustomer() {
     const confirmed = window.confirm(
-      `هل تريد أرشفة الزبون: ${customer.name}؟\n\n` +
-      'سيختفي من البحث العادي، لكن أوراقه ودفعاته لن تُحذف.'
+      `???" ???????? ?????????? ???"?????^??: ${customer.name}??\n\n` +
+      '???????????? ?.?? ???"?????? ???"?????????O ?"?f?? ???^?????,?? ?^???????????? ?"?? ??????????.'
     )
 
     if (!confirmed) {
@@ -1622,8 +1367,8 @@ function CustomerCompactBar({
             type="button"
             className="customer-action-icon add-paper-action"
             onClick={openNewPaper}
-            aria-label={`إضافة ورقة للزبون ${customer.name}`}
-            title="إضافة ورقة"
+            aria-label={`?????????? ?^???,?? ?"?"?????^?? ${customer.name}`}
+            title="?????????? ?^???,??"
           >
             +
           </button>
@@ -1631,10 +1376,10 @@ function CustomerCompactBar({
           <Link
             to="/"
             className="customer-action-icon change-customer-action"
-            aria-label="تغيير الزبون"
-            title="تغيير الزبون"
+            aria-label="?????????? ???"?????^??"
+            title="?????????? ???"?????^??"
           >
-            ⌂
+            ?O,
           </Link>
 
           <button
@@ -1644,10 +1389,10 @@ function CustomerCompactBar({
               setShowEditForm(!showEditForm)
             }
             disabled={saving}
-            aria-label="تعديل بيانات الزبون"
-            title="تعديل بيانات الزبون"
+            aria-label="?????????" ???????????? ???"?????^??"
+            title="?????????" ???????????? ???"?????^??"
           >
-            ✎
+            ?o?
           </button>
 
           <button
@@ -1655,10 +1400,10 @@ function CustomerCompactBar({
             className="customer-action-icon archive-customer-action"
             onClick={archiveCurrentCustomer}
             disabled={saving}
-            aria-label="أرشفة الزبون"
-            title="أرشفة الزبون"
+            aria-label="?????????? ???"?????^??"
+            title="?????????? ???"?????^??"
           >
-            🗃
+            ??-f
           </button>
         </div>
       </div>
@@ -1669,7 +1414,7 @@ function CustomerCompactBar({
           onSubmit={saveCustomer}
         >
           <label>
-            اسم الزبون
+            ?????. ???"?????^??
             <input
               type="text"
               value={name}
@@ -1681,7 +1426,7 @@ function CustomerCompactBar({
           </label>
 
           <label>
-            رقم الهاتف
+            ???,?. ???"????????
             <input
               type="tel"
               value={phone}
@@ -1692,7 +1437,7 @@ function CustomerCompactBar({
           </label>
 
           <label>
-            ملاحظات
+            ?.?"??????????
             <textarea
               value={notes}
               onChange={(event) =>
@@ -1707,7 +1452,7 @@ function CustomerCompactBar({
               type="submit"
               disabled={saving}
             >
-              {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+              {saving ? '???????? ???"??????...' : '??????'}
             </button>
 
             <button
@@ -1722,7 +1467,7 @@ function CustomerCompactBar({
               }}
               disabled={saving}
             >
-              إلغاء
+              ???"??????
             </button>
           </div>
         </form>
@@ -1741,33 +1486,33 @@ function CustomerCompactBar({
               type="button"
               className="close-button"
               onClick={() => setShowPaperPicker(false)}
-              aria-label="إغلاق"
-              title="إغلاق"
+              aria-label="?????"???,"
+              title="?????"???,"
             >
-              ×
+              ?-
             </button>
 
-            <h2>إضافة ورقة</h2>
+            <h2>?????????? ?^???,??</h2>
 
             <div className="source-picker-actions">
               <button
                 type="button"
                 className="source-camera-button"
                 onClick={() => choosePaperSource('camera')}
-                aria-label="تصوير الورقة بالكاميرا"
-                title="تصوير بالكاميرا"
+                aria-label="?????^???? ???"?^???,?? ?????"?f???.??????"
+                title="?????^???? ?????"?f???.??????"
               >
-                📷
+                ??"?
               </button>
 
               <button
                 type="button"
                 className="source-file-button"
                 onClick={() => choosePaperSource('file')}
-                aria-label="اختيار صورة من الهاتف"
-                title="اختيار صورة من الهاتف"
+                aria-label="???????????? ???^???? ?.?? ???"????????"
+                title="???????????? ???^???? ?.?? ???"????????"
               >
-                🖼
+                ??-?
               </button>
             </div>
           </section>
@@ -1801,7 +1546,7 @@ function CustomerCompactBar({
     event.preventDefault()
 
     if (!name.trim()) {
-      setMessage('اسم الزبون مطلوب')
+      setMessage('?????. ???"?????^?? ?.???"?^??')
       return
     }
 
@@ -1816,7 +1561,7 @@ function CustomerCompactBar({
         notes
       })
 
-      setMessage('تم حفظ بيانات الزبون')
+      setMessage('???. ?????? ???????????? ???"?????^??')
       setShowForm(false)
       await onSaved()
     } catch (error) {
@@ -1828,8 +1573,8 @@ function CustomerCompactBar({
 
   async function archiveCurrentCustomer() {
     const confirmed = window.confirm(
-      `هل تريد أرشفة الزبون: ${customer.name}؟\n\n` +
-      'سيختفي من البحث العادي، لكن أوراقه ودفعاته لن تُحذف.'
+      `???" ???????? ?????????? ???"?????^??: ${customer.name}??\n\n` +
+      '???????????? ?.?? ???"?????? ???"?????????O ?"?f?? ???^?????,?? ?^???????????? ?"?? ??????????.'
     )
 
     if (!confirmed) {
@@ -1854,7 +1599,7 @@ function CustomerCompactBar({
 
     try {
       await restoreCustomer(customer.id)
-      setMessage('تم إلغاء أرشفة الزبون')
+      setMessage('???. ???"?????? ?????????? ???"?????^??')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -1867,10 +1612,10 @@ function CustomerCompactBar({
     <section className="customer-edit-card">
       <div className="customer-edit-header">
         <div>
-          <h2>بيانات الزبون</h2>
+          <h2>???????????? ???"?????^??</h2>
           <p>
-            تعديل الاسم أو الهاتف أو الملاحظات، أو أرشفة
-            الزبون.
+            ?????????" ???"?????. ???^ ???"???????? ???^ ???"?.?"???????????O ???^ ??????????
+            ???"?????^??.
           </p>
         </div>
 
@@ -1880,8 +1625,8 @@ function CustomerCompactBar({
           disabled={saving}
         >
           {showForm
-            ? 'إلغاء التعديل'
-            : 'تعديل بيانات الزبون'}
+            ? '???"?????? ???"?????????"'
+            : '?????????" ???????????? ???"?????^??'}
         </button>
       </div>
 
@@ -1891,7 +1636,7 @@ function CustomerCompactBar({
           onSubmit={saveCustomer}
         >
           <label>
-            اسم الزبون
+            ?????. ???"?????^??
             <input
               type="text"
               value={name}
@@ -1903,7 +1648,7 @@ function CustomerCompactBar({
           </label>
 
           <label>
-            رقم الهاتف
+            ???,?. ???"????????
             <input
               type="tel"
               value={phone}
@@ -1914,7 +1659,7 @@ function CustomerCompactBar({
           </label>
 
           <label>
-            ملاحظات
+            ?.?"??????????
             <textarea
               value={notes}
               onChange={(event) =>
@@ -1926,8 +1671,8 @@ function CustomerCompactBar({
 
           <button type="submit" disabled={saving}>
             {saving
-              ? 'جارٍ الحفظ...'
-              : 'حفظ بيانات الزبون'}
+              ? '???????? ???"??????...'
+              : '?????? ???????????? ???"?????^??'}
           </button>
         </form>
       )}
@@ -1939,8 +1684,8 @@ function CustomerCompactBar({
           disabled={saving}
         >
           {saving
-            ? 'جارٍ إلغاء الأرشفة...'
-            : 'إلغاء الأرشفة'}
+            ? '???????? ???"?????? ???"??????????...'
+            : '???"?????? ???"??????????'}
         </button>
       ) : (
         <button
@@ -1949,8 +1694,8 @@ function CustomerCompactBar({
           disabled={saving}
         >
           {saving
-            ? 'جارٍ الأرشفة...'
-            : 'أرشفة الزبون'}
+            ? '???????? ???"??????????...'
+            : '?????????? ???"?????^??'}
         </button>
       )}
 
@@ -1986,13 +1731,13 @@ function CustomerSummary({ customer }) {
     return (
       <section className="compact-summary customer-summary">
         <span className="compact-summary-loading">
-          جارٍ تحميل الملخص...
+          ???????? ?????.???" ???"?.?"????...
         </span>
       </section>
     )
   }
 
-   const visiblePapers = papers.filter(
+  const visiblePapers = papers.filter(
     (paper) => paper.status !== 'archived'
   )
 
@@ -2000,36 +1745,39 @@ function CustomerSummary({ customer }) {
     (paper) => paper.status === 'open'
   )
 
-  const pricedOpenPapers = openPapers.filter(
-    (paper) =>
-      paper.total_amount !== null &&
-      paper.total_amount !== undefined &&
-      Number(paper.total_amount) !== 0
+  const totalOpenPayments = getActivePaymentsTotal(
+    openPapers
   )
 
-  const unpricedOpenPapersCount =
-    openPapers.length - pricedOpenPapers.length
-
-  const openPapersTotalAmount = openPapers.reduce(
-    (sum, paper) =>
-      sum + Number(paper.total_amount || 0),
-    0
-  )
+  const finalBalance = getOpenBalanceTotal(openPapers)
 
   return (
     <section
       className="compact-summary customer-summary"
-      aria-label={`ملخص الزبون ${customer.name}`}
+      aria-label={`?.?"???? ???"?????^?? ${customer.name}`}
     >
       <article className="compact-summary-item">
         <span
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ▤
+          ?-?
         </span>
         <span className="compact-summary-label">
-          الأوراق
+          ?f?" ???"???^?????,
+        </span>
+        <strong>{visiblePapers.length}</strong>
+      </article>
+
+      <article className="compact-summary-item">
+        <span
+          className="compact-summary-icon"
+          aria-hidden="true"
+        >
+          ?-?
+        </span>
+        <span className="compact-summary-label">
+          ?.?????^????
         </span>
         <strong>{openPapers.length}</strong>
       </article>
@@ -2039,12 +1787,14 @@ function CustomerSummary({ customer }) {
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ◌
+          ??"
         </span>
         <span className="compact-summary-label">
-          غير مسعر
+          ?????????? ?.?????^????
         </span>
-        <strong>{unpricedOpenPapersCount}</strong>
+        <strong>
+          {totalOpenPayments.toFixed(2)}
+        </strong>
       </article>
 
       <article className="compact-summary-item balance-summary-item">
@@ -2052,19 +1802,16 @@ function CustomerSummary({ customer }) {
           className="compact-summary-icon"
           aria-hidden="true"
         >
-          ₿
+          ?-^
         </span>
         <span className="compact-summary-label">
-          القيمة
+          ???"???????? ???"?.?????^??
         </span>
-        <strong>
-          {openPapersTotalAmount.toFixed(2)}
-        </strong>
+        <strong>{finalBalance.toFixed(2)}</strong>
       </article>
     </section>
   )
 }
-
 function CustomerPapers({ customer }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -2162,33 +1909,6 @@ useEffect(() => {
   navigate
 ])
 
-
-    useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const openPaperId = params.get('openPaper')
-
-    if (!openPaperId) {
-      return
-    }
-
-    const matchingPaper = papers.find(
-      (paper) => String(paper.id) === openPaperId
-    )
-
-    if (matchingPaper) {
-      openDetails(matchingPaper)
-
-      navigate(
-        `/customer/${customer.id}/papers`,
-        { replace: true }
-      )
-    }
-  }, [
-    location.search,
-    papers,
-    customer.id,
-    navigate
-  ])
 
   async function loadPapers() {
     try {
@@ -2297,7 +2017,7 @@ useEffect(() => {
 
   function continueMoveToTarget() {
     if (selectedPaperIds.length === 0) {
-      setMessage('اختر ورقة واحدة على الأقل للنقل')
+      setMessage('???????? ?^???,?? ?^???????? ???"?? ???"???,?" ?"?"???,?"')
       return
     }
 
@@ -2316,12 +2036,12 @@ useEffect(() => {
 
   async function confirmMovePapers() {
     if (!targetCustomer) {
-      setMessage('اختر الزبون المنقول إليه')
+      setMessage('???????? ???"?????^?? ???"?.???,?^?" ???"????')
       return
     }
 
     setSaving(true)
-    setMessage('جارٍ نقل الأوراق...')
+    setMessage('???????? ???,?" ???"???^?????,...')
 
     try {
       const movedCount = await movePapersToCustomer({
@@ -2331,7 +2051,7 @@ useEffect(() => {
 
       cancelMoveMode()
       setMessage(
-        `تم نقل ${movedCount} ورقة إلى ${targetCustomer.name}`
+        `???. ???,?" ${movedCount} ?^???,?? ???"?? ${targetCustomer.name}`
       )
 
       await loadPapers()
@@ -2346,12 +2066,12 @@ useEffect(() => {
     event.preventDefault()
 
     if (!paperFile) {
-      setMessage('اختر صورة الورقة')
+      setMessage('???????? ???^???? ???"?^???,??')
       return
     }
 
     setSaving(true)
-    setMessage('جارٍ حفظ الورقة...')
+    setMessage('???????? ?????? ???"?^???,??...')
 
     try {
       const temporaryId = crypto.randomUUID()
@@ -2376,7 +2096,7 @@ useEffect(() => {
         new Date().toISOString().slice(0, 10)
       )
       closePaperForm()
-      setMessage('تمت إضافة الورقة')
+      setMessage('???.?? ?????????? ???"?^???,??')
       await loadPapers()
     } catch (error) {
       setMessage(error.message)
@@ -2436,7 +2156,7 @@ useEffect(() => {
     event.stopPropagation()
 
     const confirmed = window.confirm(
-      `هل تريد إغلاق الورقة بتاريخ ${paper.paper_date}؟`
+      `???" ???????? ?????"???, ???"?^???,?? ???????????? ${paper.paper_date}??`
     )
 
     if (!confirmed) {
@@ -2448,7 +2168,7 @@ useEffect(() => {
 
     try {
       await closePaper(paper.id)
-      setMessage('تم إغلاق الورقة')
+      setMessage('???. ?????"???, ???"?^???,??')
       await loadPapers()
     } catch (error) {
       setMessage(error.message)
@@ -2461,7 +2181,7 @@ useEffect(() => {
     event.stopPropagation()
 
     const confirmed = window.confirm(
-      `هل تريد إعادة فتح الورقة بتاريخ ${paper.paper_date}؟`
+      `???" ???????? ?????????? ?????? ???"?^???,?? ???????????? ${paper.paper_date}??`
     )
 
     if (!confirmed) {
@@ -2473,7 +2193,7 @@ useEffect(() => {
 
     try {
       await reopenPaper(paper.id)
-      setMessage('تمت إعادة فتح الورقة')
+      setMessage('???.?? ?????????? ?????? ???"?^???,??')
       await loadPapers()
     } catch (error) {
       setMessage(error.message)
@@ -2498,7 +2218,7 @@ useEffect(() => {
         quickAmount
       )
 
-      setMessage('تم حفظ قيمة الورقة')
+      setMessage('???. ?????? ?,???.?? ???"?^???,??')
       resetQuickAction()
       await loadPapers()
     } catch (error) {
@@ -2526,7 +2246,7 @@ useEffect(() => {
         note: quickPaymentNote
       })
 
-      setMessage('تمت إضافة الدفعة')
+      setMessage('???.?? ?????????? ???"????????')
       resetQuickAction()
       await loadPapers()
     } catch (error) {
@@ -2540,12 +2260,12 @@ useEffect(() => {
     event.preventDefault()
 
     if (!quickAction?.paper || !quickImageFile) {
-      setMessage('اختر الصورة الجديدة')
+      setMessage('???????? ???"???^???? ???"??????????')
       return
     }
 
     setSaving(true)
-    setMessage('جارٍ رفع الصورة الجديدة...')
+    setMessage('???????? ?????? ???"???^???? ???"??????????...')
 
     try {
       const imagePath = await uploadPaperImage(
@@ -2564,7 +2284,7 @@ useEffect(() => {
         imagePath
       )
 
-      setMessage('تم استبدال الصورة وحفظ القديمة')
+      setMessage('???. ?????????????" ???"???^???? ?^?????? ???"?,?????.??')
       resetQuickAction()
       await loadPapers()
     } catch (error) {
@@ -2590,7 +2310,7 @@ useEffect(() => {
         quickArchiveReason
       )
 
-      setMessage('تمت أرشفة الورقة')
+      setMessage('???.?? ?????????? ???"?^???,??')
       resetQuickAction()
       await loadPapers()
     } catch (error) {
@@ -2601,7 +2321,7 @@ useEffect(() => {
   }
 
   async function shareVisiblePapers(includeImageLinks) {
-    setMessage('جارٍ تجهيز رسالة WhatsApp...')
+    setMessage('???????? ?????????? ???????"?? WhatsApp...')
 
     try {
       const text =
@@ -2615,8 +2335,8 @@ useEffect(() => {
 
       setMessage(
         includeImageLinks
-          ? 'تم تجهيز الرسالة مع روابط الصور'
-          : 'تم تجهيز الرسالة بدون روابط الصور'
+          ? '???. ?????????? ???"???????"?? ?.?? ???^?????? ???"???^??'
+          : '???. ?????????? ???"???????"?? ?????^?? ???^?????? ???"???^??'
       )
 
       setShowPaperWhatsAppOptions(false)
@@ -2659,10 +2379,10 @@ useEffect(() => {
       />
 <div className="papers-compact-header">
   <div className="papers-compact-title">
-    <h2>أوراق {customer.name}</h2>
+    <h2>???^?????, {customer.name}</h2>
 
     <small>
-      {visiblePapers.length} ورقة ظاهرة
+      {visiblePapers.length} ?^???,?? ??????????
     </small>
   </div>
 
@@ -2673,10 +2393,10 @@ useEffect(() => {
           type="button"
           className="papers-icon-button move-papers-icon"
           onClick={startMoveMode}
-          aria-label="نقل أوراق"
-          title="نقل أوراق"
+          aria-label="???,?" ???^?????,"
+          title="???,?" ???^?????,"
         >
-          ⇄
+          ??"
         </button>
 
         <div className="paper-whatsapp-actions">
@@ -2688,10 +2408,10 @@ useEffect(() => {
                 !showPaperWhatsAppOptions
               )
             }
-            aria-label="إرسال تقرير الأوراق عبر WhatsApp"
+            aria-label="?????????" ???,?????? ???"???^?????, ?????? WhatsApp"
             title="WhatsApp"
           >
-            ☏
+            ???
           </button>
 
           {showPaperWhatsAppOptions && (
@@ -2700,20 +2420,20 @@ useEffect(() => {
                 type="button"
                 className="whatsapp-without-links-button"
                 onClick={() => shareVisiblePapers(false)}
-                aria-label="إرسال تقرير الأوراق بدون روابط الصور"
-                title="إرسال بدون روابط الصور"
+                aria-label="?????????" ???,?????? ???"???^?????, ?????^?? ???^?????? ???"???^??"
+                title="?????????" ?????^?? ???^?????? ???"???^??"
               >
-                ◌
+                ?-O
               </button>
 
               <button
                 type="button"
                 className="whatsapp-with-links-button"
                 onClick={() => shareVisiblePapers(true)}
-                aria-label="إرسال تقرير الأوراق مع روابط الصور"
-                title="إرسال مع روابط الصور"
+                aria-label="?????????" ???,?????? ???"???^?????, ?.?? ???^?????? ???"???^??"
+                title="?????????" ?.?? ???^?????? ???"???^??"
               >
-                🔗
+                ??"-
               </button>
             </div>
           )}
@@ -2723,8 +2443,8 @@ useEffect(() => {
   type="button"
   className="papers-icon-button add-paper-icon"
   onClick={() => setShowPaperSourcePicker(true)}
-  aria-label="إضافة ورقة جديدة"
-  title="إضافة ورقة جديدة"
+  aria-label="?????????? ?^???,?? ??????????"
+  title="?????????? ?^???,?? ??????????"
 >
   +
 </button>
@@ -2735,10 +2455,10 @@ useEffect(() => {
           type="button"
           className="papers-icon-button cancel-move-icon"
           onClick={cancelMoveMode}
-          aria-label="إلغاء نقل الأوراق"
-          title="إلغاء النقل"
+          aria-label="???"?????? ???,?" ???"???^?????,"
+          title="???"?????? ???"???,?""
         >
-          ×
+          ?-
         </button>
 
         <button
@@ -2746,10 +2466,10 @@ useEffect(() => {
           className="papers-continue-button"
           onClick={continueMoveToTarget}
           disabled={selectedPaperIds.length === 0}
-          aria-label={`متابعة نقل ${selectedPaperIds.length} ورقة`}
-          title={`متابعة نقل ${selectedPaperIds.length} ورقة`}
+          aria-label={`?.?????????? ???,?" ${selectedPaperIds.length} ?^???,??`}
+          title={`?.?????????? ???,?" ${selectedPaperIds.length} ?^???,??`}
         >
-          ✓
+          ?o"
         </button>
       </>
     )}
@@ -2757,13 +2477,13 @@ useEffect(() => {
 </div>
 <div
   className="filter-tabs compact-paper-filters"
-  aria-label="فلتر الأوراق"
+  aria-label="???"???? ???"???^?????,"
 >
   {[
-    ['all', '▤', 'كل الأوراق'],
-    ['open', '◉', 'الأوراق المفتوحة'],
-    ['closed', '✓', 'الأوراق المغلقة'],
-    ['archived', '🗃', 'الأوراق المؤرشفة']
+    ['all', '?-?', '?f?" ???"???^?????,'],
+    ['open', '?-?', '???"???^?????, ???"?.?????^????'],
+    ['closed', '?o"', '???"???^?????, ???"?.???"?,??'],
+    ['archived', '??-f', '???"???^?????, ???"?.??????????']
   ].map(([value, icon, label]) => (
     <button
       key={value}
@@ -2783,9 +2503,9 @@ useEffect(() => {
 </div>
       {moveMode && (
         <section className="move-mode-note">
-          <strong>وضع نقل الأوراق مفعل.</strong>
-          اختر الأوراق التي تريد نقلها، ثم اضغط
-          «متابعة النقل».
+          <strong>?^???? ???,?" ???"???^?????, ?.?????".</strong>
+          ???????? ???"???^?????, ???"???? ???????? ???,?"?????O ???. ????????
+          ???.?????????? ???"???,?"??.
         </section>
       )}
       {showPaperSourcePicker && (
@@ -2797,13 +2517,13 @@ useEffect(() => {
               onClick={() =>
                 setShowPaperSourcePicker(false)
               }
-              aria-label="إغلاق"
-              title="إغلاق"
+              aria-label="?????"???,"
+              title="?????"???,"
             >
-              ×
+              ?-
             </button>
 
-            <h2>إضافة ورقة</h2>
+            <h2>?????????? ?^???,??</h2>
 
             <div className="source-picker-actions">
               <button
@@ -2816,10 +2536,10 @@ useEffect(() => {
                   }, 120)
                   setShowForm(true)
                 }}
-                aria-label="تصوير الورقة بالكاميرا"
-                title="تصوير بالكاميرا"
+                aria-label="?????^???? ???"?^???,?? ?????"?f???.??????"
+                title="?????^???? ?????"?f???.??????"
               >
-                📷
+                ??"?
               </button>
 
               <button
@@ -2832,10 +2552,10 @@ useEffect(() => {
                   }, 120)
                   setShowForm(true)
                 }}
-                aria-label="اختيار صورة من الهاتف"
-                title="اختيار صورة من الهاتف"
+                aria-label="???????????? ???^???? ?.?? ???"????????"
+                title="???????????? ???^???? ?.?? ???"????????"
               >
-                🖼
+                ??-?
               </button>
             </div>
           </section>
@@ -2845,35 +2565,35 @@ useEffect(() => {
       {showForm && (
         <section className="form-card">
           <div className="form-card-title-row">
-            <h2>إضافة ورقة للزبون</h2>
+            <h2>?????????? ?^???,?? ?"?"?????^??</h2>
 
             <button
               type="button"
               className="form-close-button"
               onClick={closePaperForm}
             >
-              إغلاق
+              ?????"???,
             </button>
           </div>
 
           <form onSubmit={savePaper}>
 <div className="selected-paper-image">
-  <span>صورة الورقة</span>
+  <span>???^???? ???"?^???,??</span>
 
   {paperFile ? (
     <p>
-      تم اختيار الصورة:
+      ???. ???????????? ???"???^????:
       {' '}
       <strong>{paperFile.name}</strong>
     </p>
   ) : (
     <p className="message error">
-      لم يتم اختيار صورة. أغلق النموذج ثم اضغط + واختر 📷 أو 🖼.
+      ?"?. ?????. ???????????? ???^????. ?????"?, ???"???.?^???? ???. ???????? + ?^???????? ??"? ???^ ??-?.
     </p>
   )}
 </div>
             <label>
-              تاريخ الورقة
+              ?????????? ???"?^???,??
               <input
                 type="date"
                 value={paperDate}
@@ -2885,7 +2605,7 @@ useEffect(() => {
             </label>
 
             <label>
-              القيمة، اختيارية
+              ???"?,???.???O ????????????????
               <input
                 type="number"
                 step="0.01"
@@ -2897,7 +2617,7 @@ useEffect(() => {
             </label>
 
             <label>
-              ملاحظة
+              ?.?"????????
               <textarea
                 value={paperNote}
                 onChange={(event) =>
@@ -2909,8 +2629,8 @@ useEffect(() => {
 
             <button type="submit" disabled={saving}>
               {saving
-                ? 'جارٍ الحفظ...'
-                : 'حفظ الورقة'}
+                ? '???????? ???"??????...'
+                : '?????? ???"?^???,??'}
             </button>
           </form>
         </section>
@@ -2970,7 +2690,7 @@ useEffect(() => {
 
       {visiblePapers.length === 0 ? (
         <div className="empty-card">
-          لا توجد أوراق ضمن هذا التبويب
+          ?"?? ???^???? ???^?????, ???.?? ?????? ???"?????^????
         </div>
       ) : (
         <div className="papers-list">
@@ -2982,12 +2702,12 @@ useEffect(() => {
 
             const amountText =
               paper.total_amount === null
-                ? 'غير محسوبة'
+                ? '?????? ?.?????^????'
                 : Number(paper.total_amount).toFixed(2)
 
             const balanceText =
               balance === null
-                ? 'غير محسوب'
+                ? '?????? ?.?????^??'
                 : balance.toFixed(2)
 
             const isSelected = selectedPaperIds.includes(
@@ -3018,7 +2738,7 @@ useEffect(() => {
                         togglePaperSelection(paper.id)
                       }
                     />
-                    اختيار
+                    ????????????
                   </label>
                 )}
 
@@ -3026,11 +2746,11 @@ useEffect(() => {
                   <img
                     className="paper-thumbnail"
                     src={thumbnailUrls[paper.id]}
-                    alt={`صورة ورقة بتاريخ ${paper.paper_date}`}
+                    alt={`???^???? ?^???,?? ???????????? ${paper.paper_date}`}
                   />
                 ) : (
                   <div className="paper-thumbnail placeholder-thumbnail">
-                    لا توجد صورة
+                    ?"?? ???^???? ???^????
                   </div>
                 )}
 
@@ -3039,17 +2759,17 @@ useEffect(() => {
                     {paper.paper_date}
                   </h3>
 
-                  <p>القيمة: {amountText}</p>
+                  <p>???"?,???.??: {amountText}</p>
 
                   <p>
-                    الدفعات:{' '}
+                    ???"??????????:{' '}
                     {getPaymentsTotal(paper).toFixed(2)}
                   </p>
 
-                  <p>الرصيد: {balanceText}</p>
+                  <p>???"????????: {balanceText}</p>
 
                   <p>
-                    الحالة: {getStatusText(paper.status)}
+                    ???"?????"??: {getStatusText(paper.status)}
                   </p>
                 </div>
 
@@ -3073,7 +2793,7 @@ useEffect(() => {
                             )
                           }
                         >
-                          تعديل
+                          ?????????"
                         </button>
 
                         <button
@@ -3087,7 +2807,7 @@ useEffect(() => {
                             )
                           }
                         >
-                          دفعة
+                          ????????
                         </button>
 
                         <button
@@ -3101,7 +2821,7 @@ useEffect(() => {
                             )
                           }
                         >
-                          استبدال
+                          ?????????????"
                         </button>
 
                         {paper.status === 'open' ? (
@@ -3113,7 +2833,7 @@ useEffect(() => {
                             }
                             disabled={saving}
                           >
-                            إغلاق
+                            ?????"???,
                           </button>
                         ) : (
                           <button
@@ -3124,7 +2844,7 @@ useEffect(() => {
                             }
                             disabled={saving}
                           >
-                            فتح
+                            ??????
                           </button>
                         )}
 
@@ -3139,14 +2859,14 @@ useEffect(() => {
                             )
                           }
                         >
-                          أرشفة
+                          ??????????
                         </button>
                       </>
                     )}
 
                     {paper.status === 'archived' && (
                       <span className="archived-paper-note">
-                        افتح الورقة لإلغاء الأرشفة
+                        ???????? ???"?^???,?? ?"???"?????? ???"??????????
                       </span>
                     )}
                   </div>
@@ -3209,7 +2929,7 @@ function QuickPaperActionModal({
           className="close-button"
           onClick={onClose}
         >
-          إغلاق
+          ?????"???,
         </button>
 
         <h2>
@@ -3217,13 +2937,13 @@ function QuickPaperActionModal({
         </h2>
 
         <p className="quick-action-paper-info">
-          الورقة بتاريخ: {paper.paper_date}
+          ???"?^???,?? ????????????: {paper.paper_date}
         </p>
 
         {action.type === 'edit' && (
           <form onSubmit={onSaveEdit}>
             <label>
-              قيمة الورقة
+              ?,???.?? ???"?^???,??
               <input
                 type="number"
                 step="0.01"
@@ -3237,8 +2957,8 @@ function QuickPaperActionModal({
 
             <button type="submit" disabled={saving}>
               {saving
-                ? 'جارٍ الحفظ...'
-                : 'حفظ التعديل'}
+                ? '???????? ???"??????...'
+                : '?????? ???"?????????"'}
             </button>
           </form>
         )}
@@ -3246,7 +2966,7 @@ function QuickPaperActionModal({
         {action.type === 'payment' && (
           <form onSubmit={onSavePayment}>
             <label>
-              قيمة الدفعة
+              ?,???.?? ???"????????
               <input
                 type="number"
                 min="0.01"
@@ -3260,7 +2980,7 @@ function QuickPaperActionModal({
             </label>
 
             <label>
-              تاريخ الدفعة
+              ?????????? ???"????????
               <input
                 type="date"
                 value={paymentDate}
@@ -3272,7 +2992,7 @@ function QuickPaperActionModal({
             </label>
 
             <label>
-              ملاحظة
+              ?.?"????????
               <textarea
                 value={paymentNote}
                 onChange={(event) =>
@@ -3284,8 +3004,8 @@ function QuickPaperActionModal({
 
             <button type="submit" disabled={saving}>
               {saving
-                ? 'جارٍ الحفظ...'
-                : 'حفظ الدفعة'}
+                ? '???????? ???"??????...'
+                : '?????? ???"????????'}
             </button>
           </form>
         )}
@@ -3293,7 +3013,7 @@ function QuickPaperActionModal({
         {action.type === 'image' && (
           <form onSubmit={onSaveImage}>
             <label>
-              الصورة الجديدة
+              ???"???^???? ???"??????????
               <input
                 type="file"
                 accept="image/*"
@@ -3308,21 +3028,21 @@ function QuickPaperActionModal({
             </label>
 
             <label>
-              وصف الصورة
+              ?^???? ???"???^????
               <textarea
                 value={imageDescription}
                 onChange={(event) =>
                   setImageDescription(event.target.value)
                 }
                 rows="2"
-                placeholder="مثال: تمت إضافة أسعار جديدة"
+                placeholder="?.?????": ???.?? ?????????? ?????????? ??????????"
               />
             </label>
 
             <button type="submit" disabled={saving}>
               {saving
-                ? 'جارٍ رفع الصورة...'
-                : 'حفظ الصورة الجديدة'}
+                ? '???????? ?????? ???"???^????...'
+                : '?????? ???"???^???? ???"??????????'}
             </button>
           </form>
         )}
@@ -3330,14 +3050,14 @@ function QuickPaperActionModal({
         {action.type === 'archive' && (
           <form onSubmit={onSaveArchive}>
             <label>
-              سبب الأرشفة
+              ?????? ???"??????????
               <textarea
                 value={archiveReason}
                 onChange={(event) =>
                   setArchiveReason(event.target.value)
                 }
                 rows="3"
-                placeholder="مثال: تم إلغاء الطلب"
+                placeholder="?.?????": ???. ???"?????? ???"???"??"
               />
             </label>
 
@@ -3347,8 +3067,8 @@ function QuickPaperActionModal({
               disabled={saving}
             >
               {saving
-                ? 'جارٍ الأرشفة...'
-                : 'تأكيد الأرشفة'}
+                ? '???????? ???"??????????...'
+                : '?????f???? ???"??????????'}
             </button>
           </form>
         )}
@@ -3374,21 +3094,21 @@ function MoveTargetModal({
           className="close-button"
           onClick={onCancel}
         >
-          إغلاق
+          ?????"???,
         </button>
 
-        <h2>اختيار الزبون المنقول إليه</h2>
+        <h2>???????????? ???"?????^?? ???"?.???,?^?" ???"????</h2>
 
         <p className="move-modal-note">
-          الأوراق ستُنقل من الزبون:
+          ???"???^?????, ?????????,?" ?.?? ???"?????^??:
           <strong> {sourceCustomer.name}</strong>
         </p>
 
         <label>
-          ابحث عن الزبون الجديد
+          ???????? ???? ???"?????^?? ???"????????
           <input
             type="search"
-            placeholder="اكتب اسم الزبون..."
+            placeholder="???f???? ?????. ???"?????^??..."
             value={search}
             onChange={(event) =>
               onSearch(event.target.value)
@@ -3399,7 +3119,7 @@ function MoveTargetModal({
 
         {search.trim() && customers.length === 0 && (
           <div className="empty-card">
-            لا يوجد زبون نشط مطابق للاسم.
+            ?"?? ???^???? ?????^?? ?????? ?.???????, ?"?"?????..
           </div>
         )}
 
@@ -3426,7 +3146,7 @@ function MoveTargetModal({
             className="back-button"
             onClick={onBack}
           >
-            رجوع
+            ?????^??
           </button>
 
           <button
@@ -3434,7 +3154,7 @@ function MoveTargetModal({
             className="cancel-move-button"
             onClick={onCancel}
           >
-            إلغاء النقل
+            ???"?????? ???"???,?"
           </button>
         </div>
       </section>
@@ -3459,44 +3179,44 @@ function MoveConfirmModal({
           className="close-button"
           onClick={onCancel}
         >
-          إغلاق
+          ?????"???,
         </button>
 
-        <h2>تأكيد نقل الأوراق</h2>
+        <h2>?????f???? ???,?" ???"???^?????,</h2>
 
         <div className="move-confirm-details">
           <p>
-            من الزبون:
+            ?.?? ???"?????^??:
             <strong> {sourceCustomer.name}</strong>
           </p>
 
           <p>
-            إلى الزبون:
+            ???"?? ???"?????^??:
             <strong> {targetCustomer.name}</strong>
           </p>
 
           <p>
-            عدد الأوراق المختارة:
+            ?????? ???"???^?????, ???"?.??????????:
             <strong> {papers.length}</strong>
           </p>
         </div>
 
-        <h3>الأوراق التي سيتم نقلها</h3>
+        <h3>???"???^?????, ???"???? ???????. ???,?"????</h3>
 
         <ul className="move-papers-list">
           {papers.map((paper) => (
             <li key={paper.id}>
               <strong>{paper.paper_date}</strong>
               <span>
-                الحالة: {getStatusText(paper.status)}
+                ???"?????"??: {getStatusText(paper.status)}
               </span>
             </li>
           ))}
         </ul>
 
         <p className="move-warning">
-          النقل لا يحذف الصور أو الدفعات أو سجل الصور.
-          سيتم فقط تغيير الزبون المرتبط بهذه الأوراق.
+          ???"???,?" ?"?? ???????? ???"???^?? ???^ ???"?????????? ???^ ?????" ???"???^??.
+          ???????. ???,?? ?????????? ???"?????^?? ???"?.???????? ???????? ???"???^?????,.
         </p>
 
         <div className="modal-bottom-actions">
@@ -3506,7 +3226,7 @@ function MoveConfirmModal({
             onClick={onBack}
             disabled={saving}
           >
-            رجوع
+            ?????^??
           </button>
 
           <button
@@ -3515,7 +3235,7 @@ function MoveConfirmModal({
             onClick={onCancel}
             disabled={saving}
           >
-            إلغاء
+            ???"??????
           </button>
 
           <button
@@ -3525,8 +3245,8 @@ function MoveConfirmModal({
             disabled={saving}
           >
             {saving
-              ? 'جارٍ نقل الأوراق...'
-              : 'تأكيد نقل الأوراق'}
+              ? '???????? ???,?" ???"???^?????,...'
+              : '?????f???? ???,?" ???"???^?????,'}
           </button>
         </div>
       </section>
@@ -3563,7 +3283,7 @@ function CustomerPayments({ customer }) {
     const form = new FormData(event.currentTarget)
 
     if (!selectedPaperId) {
-      setMessage('اختر الورقة')
+      setMessage('???????? ???"?^???,??')
       return
     }
 
@@ -3577,7 +3297,7 @@ function CustomerPayments({ customer }) {
 
       event.currentTarget.reset()
       setSelectedPaperId('')
-      setMessage('تمت إضافة الدفعة')
+      setMessage('???.?? ?????????? ???"????????')
       await loadPapers()
     } catch (error) {
       setMessage(error.message)
@@ -3598,20 +3318,20 @@ function CustomerPayments({ customer }) {
     <section className="customer-section">
       <div className="section-header">
         <div>
-          <h2>دفعات {customer.name}</h2>
+          <h2>?????????? {customer.name}</h2>
           <p>
-            كل الدفعات التاريخية، بما فيها دفعات الأوراق
-            المغلقة.
+            ?f?" ???"?????????? ???"???????????????O ???.?? ???????? ?????????? ???"???^?????,
+            ???"?.???"?,??.
           </p>
         </div>
       </div>
 
       <section className="form-card">
-        <h2>إضافة دفعة</h2>
+        <h2>?????????? ????????</h2>
 
         <form onSubmit={savePayment}>
           <label>
-            الورقة
+            ???"?^???,??
             <select
               value={selectedPaperId}
               onChange={(event) =>
@@ -3619,7 +3339,7 @@ function CustomerPayments({ customer }) {
               }
               required
             >
-              <option value="">اختر الورقة</option>
+              <option value="">???????? ???"?^???,??</option>
 
               {papers
                 .filter(
@@ -3631,14 +3351,14 @@ function CustomerPayments({ customer }) {
                     value={paper.id}
                   >
                     {paper.paper_date} -{' '}
-                    {paper.total_amount ?? 'غير محسوبة'}
+                    {paper.total_amount ?? '?????? ?.?????^????'}
                   </option>
                 ))}
             </select>
           </label>
 
           <label>
-            قيمة الدفعة
+            ?,???.?? ???"????????
             <input
               name="amount"
               type="number"
@@ -3649,7 +3369,7 @@ function CustomerPayments({ customer }) {
           </label>
 
           <label>
-            تاريخ الدفعة
+            ?????????? ???"????????
             <input
               name="paymentDate"
               type="date"
@@ -3661,12 +3381,12 @@ function CustomerPayments({ customer }) {
           </label>
 
           <label>
-            ملاحظة
+            ?.?"????????
             <textarea name="note" rows="2" />
           </label>
 
           <button type="submit">
-            حفظ الدفعة
+            ?????? ???"????????
           </button>
         </form>
 
@@ -3678,7 +3398,7 @@ function CustomerPayments({ customer }) {
       <section className="payments-table">
         {payments.length === 0 ? (
           <div className="empty-card">
-            لا توجد دفعات
+            ?"?? ???^???? ??????????
           </div>
         ) : (
           payments.map((payment) => (
@@ -3692,15 +3412,15 @@ function CustomerPayments({ customer }) {
                 </strong>
 
                 <span>
-                  تاريخ الدفعة: {payment.payment_date}
+                  ?????????? ???"????????: {payment.payment_date}
                 </span>
 
                 <span>
-                  تاريخ الورقة: {payment.paperDate}
+                  ?????????? ???"?^???,??: {payment.paperDate}
                 </span>
 
                 <span>
-                  حالة الورقة:{' '}
+                  ?????"?? ???"?^???,??:{' '}
                   {getStatusText(payment.paperStatus)}
                 </span>
 
@@ -3758,7 +3478,7 @@ function CustomerReport({ customer }) {
   }
 
   async function shareReport(includeImageLinks) {
-    setMessage('جارٍ تجهيز التقرير...')
+    setMessage('???????? ?????????? ???"???,??????...')
 
     try {
       const openPapers = papers.filter(
@@ -3776,8 +3496,8 @@ function CustomerReport({ customer }) {
 
       setMessage(
         includeImageLinks
-          ? 'تم تجهيز التقرير مع روابط الصور'
-          : 'تم تجهيز التقرير بدون روابط الصور'
+          ? '???. ?????????? ???"???,?????? ?.?? ???^?????? ???"???^??'
+          : '???. ?????????? ???"???,?????? ?????^?? ???^?????? ???"???^??'
       )
 
       setShowWhatsAppOptions(false)
@@ -3814,9 +3534,9 @@ function CustomerReport({ customer }) {
     <section className="customer-section">
       <div className="section-header">
         <div>
-          <h2>تقرير {customer.name}</h2>
+          <h2>???,?????? {customer.name}</h2>
           <p>
-            هذا التقرير يحتوي الأوراق المفتوحة فقط.
+            ?????? ???"???,?????? ???????^?? ???"???^?????, ???"?.?????^???? ???,??.
           </p>
         </div>
 
@@ -3829,7 +3549,7 @@ function CustomerReport({ customer }) {
               )
             }
           >
-            إرسال WhatsApp
+            ?????????" WhatsApp
           </button>
 
           {showWhatsAppOptions && (
@@ -3838,14 +3558,14 @@ function CustomerReport({ customer }) {
                 className="whatsapp-without-links-button"
                 onClick={() => shareReport(false)}
               >
-                إرسال بدون روابط الصور
+                ?????????" ?????^?? ???^?????? ???"???^??
               </button>
 
               <button
                 className="whatsapp-with-links-button"
                 onClick={() => shareReport(true)}
               >
-                إرسال مع روابط الصور
+                ?????????" ?.?? ???^?????? ???"???^??
               </button>
             </div>
           )}
@@ -3858,12 +3578,12 @@ function CustomerReport({ customer }) {
 
       <section className="report-summary-card">
         <div>
-          <span>دفعات الأوراق المفتوحة</span>
+          <span>?????????? ???"???^?????, ???"?.?????^????</span>
           <strong>{totalOpenPayments.toFixed(2)}</strong>
         </div>
 
         <div>
-          <span>الرصيد النهائي المفتوح</span>
+          <span>???"???????? ???"?????????? ???"?.?????^??</span>
           <strong>{finalBalance.toFixed(2)}</strong>
         </div>
       </section>
@@ -3871,7 +3591,7 @@ function CustomerReport({ customer }) {
       <section className="papers-list">
         {openPapers.length === 0 ? (
           <div className="empty-card">
-            لا توجد أوراق مفتوحة
+            ?"?? ???^???? ???^?????, ?.?????^????
           </div>
         ) : (
           openPapers.map((paper) => {
@@ -3882,12 +3602,12 @@ function CustomerReport({ customer }) {
 
             const amountText =
               paper.total_amount === null
-                ? 'غير محسوبة'
+                ? '?????? ?.?????^????'
                 : Number(paper.total_amount).toFixed(2)
 
             const balanceText =
               balance === null
-                ? 'غير محسوب'
+                ? '?????? ?.?????^??'
                 : balance.toFixed(2)
 
             return (
@@ -3899,30 +3619,30 @@ function CustomerReport({ customer }) {
                   <img
                     className="report-paper-thumbnail"
                     src={thumbnailUrls[paper.id]}
-                    alt={`صورة ورقة بتاريخ ${paper.paper_date}`}
+                    alt={`???^???? ?^???,?? ???????????? ${paper.paper_date}`}
                   />
                 ) : (
                   <div className="report-paper-thumbnail placeholder-thumbnail">
-                    لا توجد صورة
+                    ?"?? ???^???? ???^????
                   </div>
                 )}
 
                 <div className="report-paper-content">
                   <strong>
-                    التاريخ: {paper.paper_date}
+                    ???"??????????: {paper.paper_date}
                   </strong>
 
                   <span>
-                    القيمة: {amountText}
+                    ???"?,???.??: {amountText}
                   </span>
 
                   <span>
-                    الدفعات:{' '}
+                    ???"??????????:{' '}
                     {getPaymentsTotal(paper).toFixed(2)}
                   </span>
 
                   <strong>
-                    الرصيد: {balanceText}
+                    ???"????????: {balanceText}
                   </strong>
                 </div>
               </article>
@@ -3978,7 +3698,7 @@ function PaperModal({
 
     try {
       await updatePaperAmount(paper.id, amount)
-      setMessage('تم حفظ قيمة الورقة')
+      setMessage('???. ?????? ?,???.?? ???"?^???,??')
       setShowAmountForm(false)
       await onSaved()
     } catch (error) {
@@ -4000,7 +3720,7 @@ function PaperModal({
         note: paymentNote
       })
 
-      setMessage('تمت إضافة الدفعة')
+      setMessage('???.?? ?????????? ???"????????')
       setPaymentAmount('')
       setPaymentNote('')
       setShowPaymentForm(false)
@@ -4016,12 +3736,12 @@ function PaperModal({
     event.preventDefault()
 
     if (!newImageFile) {
-      setMessage('اختر الصورة الجديدة')
+      setMessage('???????? ???"???^???? ???"??????????')
       return
     }
 
     setSaving(true)
-    setMessage('جارٍ رفع الصورة الجديدة...')
+    setMessage('???????? ?????? ???"???^???? ???"??????????...')
 
     try {
       const imagePath = await uploadPaperImage(
@@ -4040,7 +3760,7 @@ function PaperModal({
         imagePath
       )
 
-      setMessage('تم استبدال الصورة وحفظ القديمة')
+      setMessage('???. ?????????????" ???"???^???? ?^?????? ???"?,?????.??')
       setShowImageForm(false)
       setNewImageFile(null)
       setNewImageDescription('')
@@ -4057,7 +3777,7 @@ function PaperModal({
 
     try {
       await closePaper(paper.id)
-      setMessage('تم إغلاق الورقة')
+      setMessage('???. ?????"???, ???"?^???,??')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -4071,7 +3791,7 @@ function PaperModal({
 
     try {
       await reopenPaper(paper.id)
-      setMessage('تمت إعادة فتح الورقة')
+      setMessage('???.?? ?????????? ?????? ???"?^???,??')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -4085,7 +3805,7 @@ function PaperModal({
 
     try {
       await archivePaper(paper.id, archiveReason)
-      setMessage('تمت أرشفة الورقة')
+      setMessage('???.?? ?????????? ???"?^???,??')
       await onSaved()
     } catch (error) {
       setMessage(error.message)
@@ -4100,7 +3820,7 @@ function PaperModal({
     try {
       await restorePaper(paper.id)
       setMessage(
-        'تم إلغاء الأرشفة وعادت الورقة مفتوحة'
+        '???. ???"?????? ???"?????????? ?^???????? ???"?^???,?? ?.?????^????'
       )
       await onSaved()
     } catch (error) {
@@ -4115,7 +3835,7 @@ function PaperModal({
       const url = await createPaperImageUrl(imagePath)
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch {
-      setMessage('فشل فتح الصورة')
+      setMessage('?????" ?????? ???"???^????')
     }
   }
 
@@ -4126,12 +3846,12 @@ function PaperModal({
 
   const amountText =
     paper.total_amount === null
-      ? 'غير محسوبة'
+      ? '?????? ?.?????^????'
       : Number(paper.total_amount).toFixed(2)
 
   const balanceText =
     balance === null
-      ? 'غير محسوب'
+      ? '?????? ?.?????^??'
       : balance.toFixed(2)
 
   return (
@@ -4141,38 +3861,38 @@ function PaperModal({
           className="close-button"
           onClick={onClose}
         >
-          إغلاق
+          ?????"???,
         </button>
 
-        <h2>تفاصيل الورقة</h2>
+        <h2>???????????" ???"?^???,??</h2>
 
         {imageUrl && (
           <img
             className="paper-image"
             src={imageUrl}
-            alt="صورة الورقة"
+            alt="???^???? ???"?^???,??"
           />
         )}
 
-        <p>التاريخ: {paper.paper_date}</p>
-        <p>القيمة: {amountText}</p>
+        <p>???"??????????: {paper.paper_date}</p>
+        <p>???"?,???.??: {amountText}</p>
 
         <p>
-          الدفعات:{' '}
+          ???"??????????:{' '}
           {getPaymentsTotal(paper).toFixed(2)}
         </p>
 
-        <p>الرصيد: {balanceText}</p>
+        <p>???"????????: {balanceText}</p>
 
         <p>
-          الحالة: {getStatusText(paper.status)}
+          ???"?????"??: {getStatusText(paper.status)}
         </p>
 
         {paper.status === 'archived' ? (
           <>
             <p className="archive-info">
-              هذه الورقة مؤرشفة. عند إلغاء الأرشفة ستعود
-              كورقة مفتوحة.
+              ?????? ???"?^???,?? ?.??????????. ?????? ???"?????? ???"?????????? ???????^??
+              ?f?^???,?? ?.?????^????.
             </p>
 
             <button
@@ -4181,8 +3901,8 @@ function PaperModal({
               disabled={saving}
             >
               {saving
-                ? 'جارٍ إلغاء الأرشفة...'
-                : 'إلغاء الأرشفة وإعادة فتح الورقة'}
+                ? '???????? ???"?????? ???"??????????...'
+                : '???"?????? ???"?????????? ?^?????????? ?????? ???"?^???,??'}
             </button>
           </>
         ) : (
@@ -4194,8 +3914,8 @@ function PaperModal({
               }
             >
               {paper.total_amount === null
-                ? 'إضافة قيمة الورقة'
-                : 'تعديل قيمة الورقة'}
+                ? '?????????? ?,???.?? ???"?^???,??'
+                : '?????????" ?,???.?? ???"?^???,??'}
             </button>
 
             {showAmountForm && (
@@ -4204,7 +3924,7 @@ function PaperModal({
                 onSubmit={saveAmount}
               >
                 <label>
-                  قيمة الورقة
+                  ?,???.?? ???"?^???,??
                   <input
                     type="number"
                     step="0.01"
@@ -4217,7 +3937,7 @@ function PaperModal({
                 </label>
 
                 <button type="submit" disabled={saving}>
-                  حفظ القيمة
+                  ?????? ???"?,???.??
                 </button>
               </form>
             )}
@@ -4230,8 +3950,8 @@ function PaperModal({
                   disabled={saving}
                 >
                   {saving
-                    ? 'جارٍ الإغلاق...'
-                    : 'إغلاق الورقة'}
+                    ? '???????? ???"?????"???,...'
+                    : '?????"???, ???"?^???,??'}
                 </button>
               )}
 
@@ -4242,8 +3962,8 @@ function PaperModal({
                   disabled={saving}
                 >
                   {saving
-                    ? 'جارٍ الفتح...'
-                    : 'إعادة فتح الورقة'}
+                    ? '???????? ???"??????...'
+                    : '?????????? ?????? ???"?^???,??'}
                 </button>
               )}
 
@@ -4254,7 +3974,7 @@ function PaperModal({
                 }
                 disabled={saving}
               >
-                أرشفة الورقة
+                ?????????? ???"?^???,??
               </button>
             </div>
 
@@ -4267,14 +3987,14 @@ function PaperModal({
                 }}
               >
                 <label>
-                  سبب الأرشفة
+                  ?????? ???"??????????
                   <textarea
                     value={archiveReason}
                     onChange={(event) =>
                       setArchiveReason(event.target.value)
                     }
                     rows="3"
-                    placeholder="مثال: تم إلغاء الطلب"
+                    placeholder="?.?????": ???. ???"?????? ???"???"??"
                   />
                 </label>
 
@@ -4284,8 +4004,8 @@ function PaperModal({
                   disabled={saving}
                 >
                   {saving
-                    ? 'جارٍ الأرشفة...'
-                    : 'تأكيد الأرشفة'}
+                    ? '???????? ???"??????????...'
+                    : '?????f???? ???"??????????'}
                 </button>
               </form>
             )}
@@ -4297,8 +4017,8 @@ function PaperModal({
               }
             >
               {showPaymentForm
-                ? 'إلغاء'
-                : 'إضافة دفعة'}
+                ? '???"??????'
+                : '?????????? ????????'}
             </button>
 
             {showPaymentForm && (
@@ -4307,7 +4027,7 @@ function PaperModal({
                 onSubmit={savePayment}
               >
                 <label>
-                  قيمة الدفعة
+                  ?,???.?? ???"????????
                   <input
                     type="number"
                     min="0.01"
@@ -4321,7 +4041,7 @@ function PaperModal({
                 </label>
 
                 <label>
-                  تاريخ الدفعة
+                  ?????????? ???"????????
                   <input
                     type="date"
                     value={paymentDate}
@@ -4333,7 +4053,7 @@ function PaperModal({
                 </label>
 
                 <label>
-                  ملاحظة
+                  ?.?"????????
                   <textarea
                     value={paymentNote}
                     onChange={(event) =>
@@ -4345,8 +4065,8 @@ function PaperModal({
 
                 <button type="submit" disabled={saving}>
                   {saving
-                    ? 'جارٍ الحفظ...'
-                    : 'حفظ الدفعة'}
+                    ? '???????? ???"??????...'
+                    : '?????? ???"????????'}
                 </button>
               </form>
             )}
@@ -4358,98 +4078,64 @@ function PaperModal({
               }
             >
               {showImageForm
-                ? 'إلغاء تغيير الصورة'
-                : 'استبدال الصورة'}
+                ? '???"?????? ?????????? ???"???^????'
+                : '?????????????" ???"???^????'}
             </button>
 
             {showImageForm && (
-              <form
-                className="image-form"
-                onSubmit={replaceImage}
-              >
-               <div className="paper-image-picker">
-  <span className="paper-image-picker-label">
-    صورة الورقة
-  </span>
+  <form
+    className="image-form"
+    onSubmit={replaceImage}
+  >
+    <label className="paper-image-upload-label">
+      ???^???? ???"?^???,?? ???"??????????
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) =>
+          setNewImageFile(
+            event.target.files?.[0] || null
+          )
+        }
+        required
+      />
+    </label>
 
-  <div className="paper-image-picker-actions">
-    <button
-      type="button"
-      className="camera-picker-button"
-      onClick={() => cameraInputRef.current?.click()}
-      aria-label="تصوير الورقة بالكاميرا"
-      title="تصوير بالكاميرا"
-    >
-      📷
+    {newImageFile && (
+      <p className="selected-image-name">
+        ???"???^???? ???"?.??????????: {newImageFile.name}
+      </p>
+    )}
+
+    <label>
+      ?^???? ???"???^????
+      <textarea
+        value={newImageDescription}
+        onChange={(event) =>
+          setNewImageDescription(
+            event.target.value
+          )
+        }
+        rows="2"
+        placeholder="?.?????": ???.?? ?????????? ?????????? ??????????"
+      />
+    </label>
+
+    <button type="submit" disabled={saving}>
+      {saving
+        ? '???????? ?????? ???"???^????...'
+        : '?????? ???"???^???? ???"??????????'}
     </button>
-
-    <button
-      type="button"
-      className="file-picker-button"
-      onClick={() => fileInputRef.current?.click()}
-      aria-label="اختيار صورة أو ملف من الهاتف"
-      title="اختيار صورة أو ملف"
-    >
-      🖼
-    </button>
-  </div>
-
-  <input
-    ref={cameraInputRef}
-    className="hidden-file-input"
-    type="file"
-    accept="image/*"
-    capture="environment"
-    onChange={(event) =>
-      setPaperFile(event.target.files?.[0] || null)
-    }
-  />
-
-  <input
-    ref={fileInputRef}
-    className="hidden-file-input"
-    type="file"
-    accept="image/*"
-    onChange={(event) =>
-      setPaperFile(event.target.files?.[0] || null)
-    }
-  />
-
-  <p className="selected-image-name">
-    {paperFile
-      ? `الصورة المختارة: ${paperFile.name}`
-      : 'اختر طريقة إضافة الصورة.'}
-  </p>
-</div>
-
-                <label>
-                  وصف الصورة
-                  <textarea
-                    value={newImageDescription}
-                    onChange={(event) =>
-                      setNewImageDescription(
-                        event.target.value
-                      )
-                    }
-                    rows="2"
-                    placeholder="مثال: تمت إضافة أسعار جديدة"
-                  />
-                </label>
-
-                <button type="submit" disabled={saving}>
-                  {saving
-                    ? 'جارٍ رفع الصورة...'
-                    : 'حفظ الصورة الجديدة'}
-                </button>
-              </form>
-            )}
+  </form>
+)}
           </>
         )}
 
-        <h3>سجل الصور</h3>
+        <h3>?????" ???"???^??</h3>
 
         {imageHistory.length === 0 ? (
-          <p>لا يوجد سجل صور قديم</p>
+          <p>?"?? ???^???? ?????" ???^?? ?,?????.</p>
         ) : (
           <ul className="image-history-list">
             {imageHistory.map((image) => (
@@ -4464,7 +4150,7 @@ function PaperModal({
                   <small>
                     {image.description ||
                       image.note ||
-                      'صورة بدون وصف'}
+                      '???^???? ?????^?? ?^????'}
                   </small>
                 </div>
 
@@ -4475,7 +4161,7 @@ function PaperModal({
                     openHistoryImage(image.image_path)
                   }
                 >
-                  فتح الصورة
+                  ?????? ???"???^????
                 </button>
               </li>
             ))}
@@ -4492,22 +4178,22 @@ function PaperModal({
 
 function getQuickActionTitle(type) {
   if (type === 'edit') {
-    return 'تعديل قيمة الورقة'
+    return '?????????" ?,???.?? ???"?^???,??'
   }
 
   if (type === 'payment') {
-    return 'إضافة دفعة'
+    return '?????????? ????????'
   }
 
   if (type === 'image') {
-    return 'استبدال الصورة'
+    return '?????????????" ???"???^????'
   }
 
   if (type === 'archive') {
-    return 'أرشفة الورقة'
+    return '?????????? ???"?^???,??'
   }
 
-  return 'إجراء الورقة'
+  return '?????????? ???"?^???,??'
 }
 
 function getPaymentsTotal(paper) {
@@ -4521,9 +4207,9 @@ function getPaymentsTotal(paper) {
 }
 
 function getStatusText(status) {
-  if (status === 'open') return 'مفتوحة'
-  if (status === 'closed') return 'مغلقة'
-  if (status === 'archived') return 'مؤرشفة'
+  if (status === 'open') return '?.?????^????'
+  if (status === 'closed') return '?.???"?,??'
+  if (status === 'archived') return '?.??????????'
   return status
 }
 
