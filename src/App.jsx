@@ -37,9 +37,12 @@ import {
   updatePaperAmountAndDate,
 } from './lib/papers'
 import {
+  addPaperPage,
   createPaperImageUrl,
   getPaperImageHistory,
+  removePaperImage,
   savePaperImageHistory,
+  setPaperCoverImage,
   uploadPaperImage
 } from './lib/storage'
 import { createPayment } from './lib/payments'
@@ -2296,6 +2299,7 @@ function CustomerPapers({ customer }) {
   const [selectedImage, setSelectedImage] =
     useState(null)
   const [imageHistory, setImageHistory] = useState([])
+  const [currentPages, setCurrentPages] = useState([])
 
   const [paperFile, setPaperFile] = useState(null)
   const [paperDate, setPaperDate] = useState(
@@ -2592,6 +2596,26 @@ useEffect(() => {
     }
   }
 
+  async function loadImagesForPaper(paper) {
+    const history = await getPaperImageHistory(paper.id)
+
+    const currentImages = (history || []).filter(
+      (image) => image.is_current
+    )
+
+    const currentImagesWithUrls = await Promise.all(
+      currentImages.map(async (image) => ({
+        ...image,
+        url: await createPaperImageUrl(image.image_path)
+      }))
+    )
+
+    return {
+      history: history || [],
+      currentImages: currentImagesWithUrls
+    }
+  }
+
   async function openDetails(paper) {
     if (moveMode) {
       togglePaperSelection(paper.id)
@@ -2599,17 +2623,30 @@ useEffect(() => {
     }
 
     try {
-      const imageUrl = await createPaperImageUrl(
-        paper.image_path
-      )
-
-      const history = await getPaperImageHistory(
-        paper.id
-      )
+      const { history, currentImages } =
+        await loadImagesForPaper(paper)
 
       setSelectedPaper(paper)
-      setSelectedImage(imageUrl)
-      setImageHistory(history || [])
+      setImageHistory(history)
+      setCurrentPages(currentImages)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  async function refreshSelectedPaperImages() {
+    if (!selectedPaper) {
+      return
+    }
+
+    try {
+      const { history, currentImages } =
+        await loadImagesForPaper(selectedPaper)
+
+      setImageHistory(history)
+      setCurrentPages(currentImages)
+
+      loadPapers()
     } catch (error) {
       setMessage(error.message)
     }
@@ -3399,20 +3436,24 @@ useEffect(() => {
       )}
 
       {selectedPaper && (
-        <PaperModal
+<PaperModal
           paper={selectedPaper}
           imageUrl={selectedImage}
           imageHistory={imageHistory}
+          currentPages={currentPages}
+          onImagesChanged={refreshSelectedPaperImages}
           onClose={() => {
             setSelectedPaper(null)
             setSelectedImage(null)
             setImageHistory([])
+            setCurrentPages([])
           }}
           onSaved={async () => {
             await loadPapers()
             setSelectedPaper(null)
             setSelectedImage(null)
             setImageHistory([])
+            setCurrentPages([])
           }}
         />
       )}
@@ -4186,6 +4227,8 @@ function CustomerReport({ customer }) {
 }
 
 function PaperModal({
+  currentPages,
+  onImagesChanged,
   paper,
   imageUrl,
   imageHistory,
@@ -4313,6 +4356,101 @@ function PaperModal({
     }
   }
 
+    const [showAddPageForm, setShowAddPageForm] =
+    useState(false)
+
+  async function addPage(event) {
+    event.preventDefault()
+
+    if (!newImageFile) {
+      setMessage('اختر الصورة أو الملف الجديد')
+      return
+    }
+
+    setSaving(true)
+    setMessage('جارٍ رفع الصفحة الجديدة...')
+
+    try {
+      const imagePath = await uploadPaperImage(
+        newImageFile,
+        paper.id
+      )
+
+      const result = await addPaperPage({
+        paperId: paper.id,
+        imagePath,
+        description: newImageDescription
+      })
+
+      if (result.becameCover) {
+        await updatePaperImagePath(paper.id, imagePath)
+      }
+
+      setMessage('تمت إضافة الصفحة')
+      setShowAddPageForm(false)
+      setNewImageFile(null)
+      setNewImageDescription('')
+      await onImagesChanged()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deletePage(imageId) {
+    const confirmed = window.confirm(
+      'هل تريد حذف هذه الصفحة؟'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const result = await removePaperImage({
+        paperId: paper.id,
+        imageId
+      })
+
+      if (result.newCoverPath !== undefined) {
+        await updatePaperImagePath(
+          paper.id,
+          result.newCoverPath
+        )
+      }
+
+      setMessage('تم حذف الصفحة')
+      await onImagesChanged()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function makeCover(imageId) {
+    setSaving(true)
+
+    try {
+      const newCoverPath = await setPaperCoverImage({
+        paperId: paper.id,
+        imageId
+      })
+
+      await updatePaperImagePath(paper.id, newCoverPath)
+
+      setMessage('تم تعيين الصفحة الرئيسية')
+      await onImagesChanged()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function closeCurrentPaper() {
     setSaving(true)
 
@@ -4407,23 +4545,62 @@ function PaperModal({
 
         <h2>تفاصيل الورقة</h2>
 
-                {imageUrl && (
-          isPaperImagePdf(paper.image_path) ? (
-            <a
-              className="paper-pdf-link"
-              href={imageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              📄 فتح ملف PDF للورقة
-            </a>
-          ) : (
-            <img
-              className="paper-image"
-              src={imageUrl}
-              alt="صورة الورقة"
-            />
-          )
+        {currentPages.length === 0 ? (
+          <p className="message">لا توجد صور لهذه الورقة</p>
+        ) : (
+          <div className="paper-pages-gallery">
+            {currentPages.map((page, index) => (
+              <div
+                className="paper-page-item"
+                key={page.id}
+              >
+                                {isPaperImagePdf(page.image_path) ? (
+                    <a
+                    className="paper-pdf-link"
+                    href={page.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    📄 فتح ملف PDF (صفحة {index + 1})
+                  </a>
+                ) : (
+                  <img
+                    className="paper-image"
+                    src={page.url}
+                    alt={`صفحة ${index + 1}`}
+                  />
+                )}
+
+                <div className="paper-page-actions">
+                  <span className="paper-page-label">
+                    {page.is_cover
+                      ? 'الصفحة الرئيسية'
+                      : `صفحة ${index + 1}`}
+                  </span>
+
+                  {!page.is_cover && (
+                    <button
+                      type="button"
+                      className="small-button"
+                      onClick={() => makeCover(page.id)}
+                      disabled={saving}
+                    >
+                      تعيين كرئيسية
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="small-button danger-button"
+                    onClick={() => deletePage(page.id)}
+                    disabled={saving}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <p>التاريخ: {paper.paper_date}</p>
@@ -4643,10 +4820,10 @@ function PaperModal({
             >
               {showImageForm
                 ? 'إلغاء تغيير الصورة'
-                : 'استبدال الصورة'}
+                : 'استبدال كل الصور'}
             </button>
 
-                        {showImageForm && (
+            {showImageForm && (
               <form
                 className="image-form"
                 onSubmit={replaceImage}
@@ -4682,30 +4859,7 @@ function PaperModal({
                     </button>
                   </div>
 
-                  <input
-                    ref={cameraInputRef}
-                    className="hidden-file-input"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(event) =>
-                      setNewImageFile(
-                        event.target.files?.[0] || null
-                      )
-                    }
-                  />
-
-                  <input
-                    ref={fileInputRef}
-                    className="hidden-file-input"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(event) =>
-                      setNewImageFile(
-                        event.target.files?.[0] || null
-                      )
-                    }
-                  />
+                  
 
                   <p className="selected-image-name">
                     {newImageFile
@@ -4735,12 +4889,151 @@ function PaperModal({
                 </button>
               </form>
             )}
+
+            <input
+              ref={cameraInputRef}
+              className="hidden-file-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) =>
+                setNewImageFile(
+                  event.target.files?.[0] || null
+                )
+              }
+            />
+
+            <input
+              ref={fileInputRef}
+              className="hidden-file-input"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(event) =>
+                setNewImageFile(
+                  event.target.files?.[0] || null
+                )
+              }
+            />            
+<button
+              className="image-button"
+              onClick={() =>
+                setShowAddPageForm(!showAddPageForm)
+              }
+            >
+              {showAddPageForm
+                ? 'إلغاء إضافة صفحة'
+                : '+ إضافة صفحة جديدة'}
+            </button>
+
+            {showAddPageForm && (
+              <form
+                className="image-form"
+                onSubmit={addPage}
+              >
+                <div className="paper-image-picker">
+                  <span className="paper-image-picker-label">
+                    صفحة جديدة (صورة أو PDF)
+                  </span>
+
+                  <div className="paper-image-picker-actions">
+                    <button
+                      type="button"
+                      className="camera-picker-button"
+                      onClick={() =>
+                        cameraInputRef.current?.click()
+                      }
+                      aria-label="تصوير صفحة جديدة بالكاميرا"
+                      title="تصوير بالكاميرا"
+                    >
+                      📷
+                    </button>
+
+                    <button
+                      type="button"
+                      className="file-picker-button"
+                      onClick={() =>
+                        fileInputRef.current?.click()
+                      }
+                      aria-label="اختيار صفحة جديدة من الهاتف"
+                      title="اختيار صورة أو PDF"
+                    >
+                      🖼
+                    </button>
+                  </div>
+
+                  <p className="selected-image-name">
+                    {newImageFile
+                      ? `الملف المختار: ${newImageFile.name}`
+                      : 'اختر طريقة إضافة الصفحة الجديدة.'}
+                  </p>
+                </div>
+
+                <label>
+                  وصف الصفحة
+                  <textarea
+                    value={newImageDescription}
+                    onChange={(event) =>
+                      setNewImageDescription(
+                        event.target.value
+                      )
+                    }
+                    rows="2"
+                    placeholder="مثال: صفحة 2 من الفاتورة"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? 'جارٍ رفع الصفحة...'
+                    : 'حفظ الصفحة الجديدة'}
+                </button>
+              </form>
+            )}
           </>
         )}
 
 
-        <h3>سجل الصور</h3>
+        <h3>صور قديمة (مستبدلة)</h3>
 
+        {imageHistory.filter((image) => !image.is_current).length === 0 ? (
+          <p>لا يوجد سجل صور قديم</p>
+        ) : (
+          <ul className="image-history-list">
+            {imageHistory
+              .filter((image) => !image.is_current)
+              .map((image) => (
+              <li key={image.id}>
+                <div>
+                  <span>
+                    {new Date(
+                      image.created_at
+                    ).toLocaleString('ar-LB')}
+                  </span>
+
+                  <small>
+                    {image.description ||
+                      image.note ||
+                      'صورة بدون وصف'}
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  className="small-button"
+                  onClick={() =>
+                    openHistoryImage(image.image_path)
+                  }
+                >
+                  {isPaperImagePdf(image.image_path)
+                    ? 'فتح PDF'
+                    : 'فتح الصورة'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <h3>سجل الصور</h3>
         {imageHistory.length === 0 ? (
           <p>لا يوجد سجل صور قديم</p>
         ) : (

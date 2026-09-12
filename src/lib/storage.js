@@ -139,7 +139,8 @@ export async function savePaperImageHistory({
   const { error: updateError } = await supabase
     .from('paper_images')
     .update({
-      is_current: false
+      is_current: false,
+      is_cover: false
     })
     .eq('paper_id', paperId)
     .eq('is_current', true)
@@ -157,6 +158,7 @@ export async function savePaperImageHistory({
       paper_id: paperId,
       image_path: imagePath,
       is_current: true,
+      is_cover: true,
       description: cleanDescription,
       note: cleanDescription,
       created_by: user.id
@@ -171,6 +173,155 @@ export async function savePaperImageHistory({
   return data
 }
 
+export async function addPaperPage({
+  paperId,
+  imagePath,
+  description
+}) {
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
+
+  if (userError) {
+    throw userError
+  }
+
+  if (!user) {
+    throw new Error('يجب تسجيل الدخول أولًا')
+  }
+
+  const { data: existingCurrent, error: countError } =
+    await supabase
+      .from('paper_images')
+      .select('id')
+      .eq('paper_id', paperId)
+      .eq('is_current', true)
+
+  if (countError) {
+    throw countError
+  }
+
+  const isFirstPage =
+    !existingCurrent || existingCurrent.length === 0
+
+  const cleanDescription =
+    description?.trim() || null
+
+  const { data, error } = await supabase
+    .from('paper_images')
+    .insert({
+      paper_id: paperId,
+      image_path: imagePath,
+      is_current: true,
+      is_cover: isFirstPage,
+      description: cleanDescription,
+      note: cleanDescription,
+      created_by: user.id
+    })
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return {
+    image: data,
+    becameCover: isFirstPage
+  }
+}
+
+export async function removePaperImage({
+  paperId,
+  imageId
+}) {
+  const { data: removedImage, error: fetchError } =
+    await supabase
+      .from('paper_images')
+      .select('id, is_cover')
+      .eq('id', imageId)
+      .single()
+
+  if (fetchError) {
+    throw fetchError
+  }
+
+  const { error: updateError } = await supabase
+    .from('paper_images')
+    .update({
+      is_current: false,
+      is_cover: false
+    })
+    .eq('id', imageId)
+
+  if (updateError) {
+    throw updateError
+  }
+
+  if (!removedImage.is_cover) {
+    return { newCoverPath: undefined }
+  }
+
+  const { data: remaining, error: remainingError } =
+    await supabase
+      .from('paper_images')
+      .select('id, image_path')
+      .eq('paper_id', paperId)
+      .eq('is_current', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+  if (remainingError) {
+    throw remainingError
+  }
+
+  if (!remaining || remaining.length === 0) {
+    return { newCoverPath: null }
+  }
+
+  const newCover = remaining[0]
+
+  const { error: setCoverError } = await supabase
+    .from('paper_images')
+    .update({ is_cover: true })
+    .eq('id', newCover.id)
+
+  if (setCoverError) {
+    throw setCoverError
+  }
+
+  return { newCoverPath: newCover.image_path }
+}
+
+export async function setPaperCoverImage({
+  paperId,
+  imageId
+}) {
+  const { error: unsetError } = await supabase
+    .from('paper_images')
+    .update({ is_cover: false })
+    .eq('paper_id', paperId)
+    .eq('is_current', true)
+
+  if (unsetError) {
+    throw unsetError
+  }
+
+  const { data, error } = await supabase
+    .from('paper_images')
+    .update({ is_cover: true })
+    .eq('id', imageId)
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data.image_path
+}
+
 export async function getPaperImageHistory(paperId) {
   const { data, error } = await supabase
     .from('paper_images')
@@ -179,6 +330,7 @@ export async function getPaperImageHistory(paperId) {
       paper_id,
       image_path,
       is_current,
+      is_cover,
       description,
       note,
       created_at

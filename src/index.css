@@ -3119,3 +3119,41 @@ main {
 .debt-report-bucket-badge {
   color: #b91c1c !important;
 }
+.paper-pages-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.paper-page-item {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #dbe6f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.paper-page-item .paper-image {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.paper-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.paper-page-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #0f3d68;
+}
+
+.danger-button {
+  background: #b42318;
+  color: white;
+}
