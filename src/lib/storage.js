@@ -2,31 +2,94 @@ import { supabase } from './supabase'
 
 const BUCKET_NAME = 'paper-images'
 
+async function compressImageFile(file) {
+  try {
+    const bitmap = await createImageBitmap(file)
+
+    const maxDimension = 1600
+    let width = bitmap.width
+    let height = bitmap.height
+
+    if (width > maxDimension || height > maxDimension) {
+      if (width > height) {
+        height = Math.round(
+          (height * maxDimension) / width
+        )
+        width = maxDimension
+      } else {
+        width = Math.round(
+          (width * maxDimension) / height
+        )
+        height = maxDimension
+      }
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+    context.drawImage(bitmap, 0, 0, width, height)
+
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(
+        (result) => resolve(result),
+        'image/jpeg',
+        0.8
+      )
+    })
+
+    if (!blob) {
+      return file
+    }
+
+    const baseName =
+      file.name.split('.').slice(0, -1).join('.') ||
+      file.name
+
+    return new File(
+      [blob],
+      `${baseName}.jpg`,
+      { type: 'image/jpeg' }
+    )
+  } catch {
+    return file
+  }
+}
+
 export async function uploadPaperImage(file, paperId) {
   if (!file) {
     throw new Error('اختر صورة الورقة')
   }
 
-  if (!file.type.startsWith('image/')) {
-    throw new Error('الملف المختار ليس صورة')
+  const isImage = file.type.startsWith('image/')
+  const isPdf = file.type === 'application/pdf'
+
+  if (!isImage && !isPdf) {
+    throw new Error('الملف يجب أن يكون صورة أو PDF')
   }
 
   if (file.size > 6 * 1024 * 1024) {
     throw new Error('حجم الصورة يجب ألا يتجاوز 6 ميغابايت')
   }
 
+  const fileToUpload = isImage
+    ? await compressImageFile(file)
+    : file
+
   const extension =
-    file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    fileToUpload.name.split('.').pop()?.toLowerCase() ||
+    'jpg'
 
   const fileName = `${crypto.randomUUID()}.${extension}`
   const path = `papers/${paperId}/${fileName}`
 
   const { error } = await supabase.storage
     .from(BUCKET_NAME)
-    .upload(path, file, {
+    .upload(path, fileToUpload, {
       cacheControl: '3600',
       upsert: false,
-      contentType: file.type
+      contentType: fileToUpload.type
     })
 
   if (error) {

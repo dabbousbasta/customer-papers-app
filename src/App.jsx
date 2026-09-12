@@ -33,7 +33,8 @@ import {
   reopenPaper,
   restorePaper,
   updatePaperAmount,
-  updatePaperImagePath
+  updatePaperImagePath,
+  updatePaperAmountAndDate,
 } from './lib/papers'
 import {
   createPaperImageUrl,
@@ -160,6 +161,15 @@ function App() {
         path="/activities"
         element={
           <ActivitiesPage
+            session={session}
+            signOut={signOut}
+          />
+        }
+      />
+      <Route
+        path="/debt-report"
+        element={
+          <DebtReportPage
             session={session}
             signOut={signOut}
           />
@@ -374,6 +384,15 @@ function Header({
             title="سجل العمليات"
           >
             ◷
+          </Link>
+
+          <Link
+            to="/debt-report"
+            className="header-icon-button debt-report-header-button"
+            aria-label="تقرير مدة الديون"
+            title="تقرير مدة الديون"
+          >
+            ⏳
           </Link>
 
           <div className="backup-actions">
@@ -1340,6 +1359,194 @@ function ActivitiesPage({ session, signOut }) {
             )
           })}
         </ul>
+      )}
+    </main>
+  )
+}
+
+function isPaperImagePdf(path) {
+  return Boolean(path) && path.toLowerCase().endsWith('.pdf')
+}
+
+function getDebtBucket(days) {
+  if (days <= 7) return 'أسبوع'
+  if (days <= 15) return '15 يوم'
+  if (days <= 30) return 'شهر'
+  if (days <= 45) return 'شهر ونص'
+  if (days <= 60) return 'شهرين'
+  if (days <= 90) return '3 أشهر'
+  if (days <= 180) return '6 أشهر'
+  if (days <= 365) return 'سنة'
+  return 'أكثر من سنة'
+}
+
+function DebtReportPage({ session, signOut }) {
+  const navigate = useNavigate()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    loadReport()
+  }, [])
+
+  async function loadReport() {
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const { data: customersData, error } =
+        await getCustomers('', { archivedOnly: false })
+
+      if (error) {
+        throw error
+      }
+
+      const papersData = await getPapers({
+        includeArchived: false
+      })
+
+      const openPapers = (papersData || []).filter(
+        (paper) => paper.status === 'open'
+      )
+
+      const today = new Date()
+
+            const bucketOrder = [
+        'أسبوع',
+        '15 يوم',
+        'شهر',
+        'شهر ونص',
+        'شهرين',
+        '3 أشهر',
+        '6 أشهر',
+        'سنة',
+        'أكثر من سنة'
+      ]
+
+      const computedRows = (customersData || [])
+        .map((customer) => {
+          const customerPapers = openPapers.filter(
+            (paper) =>
+              paper.customer_id === customer.id
+          )
+
+          if (customerPapers.length === 0) {
+            return null
+          }
+
+          const totalValue = customerPapers.reduce(
+            (sum, paper) =>
+              sum + Number(paper.total_amount || 0),
+            0
+          )
+
+          const bucketCounts = {}
+          let maxDays = 0
+
+          customerPapers.forEach((paper) => {
+            const days = Math.floor(
+              (today - new Date(paper.paper_date)) /
+                (1000 * 60 * 60 * 24)
+            )
+
+            if (days > maxDays) {
+              maxDays = days
+            }
+
+            const bucketLabel = getDebtBucket(days)
+
+            bucketCounts[bucketLabel] =
+              (bucketCounts[bucketLabel] || 0) + 1
+          })
+
+          const buckets = bucketOrder
+            .filter((label) => bucketCounts[label])
+            .map((label) => ({
+              label,
+              count: bucketCounts[label]
+            }))
+
+          return {
+            customer,
+            papersCount: customerPapers.length,
+            totalValue,
+            buckets,
+            maxDays
+          }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.maxDays - a.maxDays)
+
+      setRows(computedRows)
+    } catch (error) {
+      setMessage(error.message)
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main dir="rtl" className="app-page">
+      <Header
+        session={session}
+        signOut={signOut}
+        title="تقرير مدة الديون"
+      />
+
+      {message && (
+        <p className="message error">{message}</p>
+      )}
+
+      {loading ? (
+        <div className="empty-card">
+          جارٍ تحميل التقرير...
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="empty-card">
+          لا يوجد زبائن لديهم أوراق مفتوحة
+        </div>
+      ) : (
+        <div className="debt-report-list">
+          {rows.map((row) => (
+                        <button
+              type="button"
+              key={row.customer.id}
+              className="debt-report-row"
+              onClick={() =>
+                navigate(
+                  `/customer/${row.customer.id}/papers`
+                )
+              }
+            >
+              <span className="debt-report-header-line">
+                <span className="debt-report-name">
+                  {row.customer.name}
+                </span>
+
+                <span className="debt-report-count">
+                  {row.papersCount} ورقة
+                </span>
+
+                <span className="debt-report-value">
+                  {row.totalValue.toFixed(2)}
+                </span>
+              </span>
+
+              <span className="debt-report-buckets">
+                {row.buckets.map((bucket) => (
+                  <span
+                    key={bucket.label}
+                    className="debt-report-bucket-badge"
+                  >
+                    {bucket.count} × {bucket.label}
+                  </span>
+                ))}
+              </span>
+            </button>
+          ))}
+        </div>
       )}
     </main>
   )
@@ -2611,7 +2818,7 @@ useEffect(() => {
           { includeImageLinks }
         )
 
-      openWhatsAppMessage(text)
+      openWhatsAppMessage(text, customer.phone)
 
       setMessage(
         includeImageLinks
@@ -2625,11 +2832,35 @@ useEffect(() => {
     }
   }
 
-  const visiblePapers = papers.filter((paper) => {
-    return filter === 'all'
-      ? true
-      : paper.status === filter
-  })
+    const statusOrder = {
+    open: 0,
+    closed: 1,
+    archived: 2
+  }
+
+  const visiblePapers = papers
+    .filter((paper) => {
+      return filter === 'all'
+        ? true
+        : paper.status === filter
+    })
+    .sort((a, b) => {
+      if (filter !== 'all') {
+        return 0
+      }
+
+      const statusDiff =
+        (statusOrder[a.status] ?? 3) -
+        (statusOrder[b.status] ?? 3)
+
+      if (statusDiff !== 0) {
+        return statusDiff
+      }
+
+      return String(b.paper_date).localeCompare(
+        String(a.paper_date)
+      )
+    })
 
   const selectedPapers = papers.filter((paper) =>
     selectedPaperIds.includes(paper.id)
@@ -3022,7 +3253,17 @@ useEffect(() => {
                   </label>
                 )}
 
-                {thumbnailUrls[paper.id] ? (
+                                {thumbnailUrls[paper.id] &&
+                isPaperImagePdf(paper.image_path) ? (
+                    <a
+		className="paper-thumbnail pdf-thumbnail-badge"
+                    href={thumbnailUrls[paper.id]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    📄 PDF
+                  </a>
+                ) : thumbnailUrls[paper.id] ? (
                   <img
                     className="paper-thumbnail"
                     src={thumbnailUrls[paper.id]}
@@ -3296,7 +3537,7 @@ function QuickPaperActionModal({
               الصورة الجديدة
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 capture="environment"
                 onChange={(event) =>
                   setImageFile(
@@ -3772,7 +4013,7 @@ function CustomerReport({ customer }) {
           { includeImageLinks }
         )
 
-      openWhatsAppMessage(text)
+      openWhatsAppMessage(text, customer.phone)
 
       setMessage(
         includeImageLinks
@@ -3895,7 +4136,17 @@ function CustomerReport({ customer }) {
                 className="report-paper-row report-paper-with-image"
                 key={paper.id}
               >
-                {thumbnailUrls[paper.id] ? (
+{thumbnailUrls[paper.id] &&
+  isPaperImagePdf(paper.image_path) ? (
+    <a
+      className="paper-thumbnail pdf-thumbnail-badge"
+      href={thumbnailUrls[paper.id]}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      📄 PDF
+    </a>
+                ) : thumbnailUrls[paper.id] ? (
                   <img
                     className="report-paper-thumbnail"
                     src={thumbnailUrls[paper.id]}
@@ -3972,13 +4223,23 @@ function PaperModal({
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
 
-  async function saveAmount(event) {
+  const cameraInputRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  const [paperDate, setPaperDate] = useState(
+    paper.paper_date
+  )
+
+    async function saveAmount(event) {
     event.preventDefault()
     setSaving(true)
 
     try {
-      await updatePaperAmount(paper.id, amount)
-      setMessage('تم حفظ قيمة الورقة')
+      await updatePaperAmountAndDate(paper.id, {
+        totalAmount: amount,
+        paperDate
+      })
+      setMessage('تم حفظ قيمة الورقة وتاريخها')
       setShowAmountForm(false)
       await onSaved()
     } catch (error) {
@@ -4146,12 +4407,23 @@ function PaperModal({
 
         <h2>تفاصيل الورقة</h2>
 
-        {imageUrl && (
-          <img
-            className="paper-image"
-            src={imageUrl}
-            alt="صورة الورقة"
-          />
+                {imageUrl && (
+          isPaperImagePdf(paper.image_path) ? (
+            <a
+              className="paper-pdf-link"
+              href={imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              📄 فتح ملف PDF للورقة
+            </a>
+          ) : (
+            <img
+              className="paper-image"
+              src={imageUrl}
+              alt="صورة الورقة"
+            />
+          )
         )}
 
         <p>التاريخ: {paper.paper_date}</p>
@@ -4198,7 +4470,7 @@ function PaperModal({
                 : 'تعديل قيمة الورقة'}
             </button>
 
-            {showAmountForm && (
+                        {showAmountForm && (
               <form
                 className="amount-form"
                 onSubmit={saveAmount}
@@ -4216,8 +4488,20 @@ function PaperModal({
                   />
                 </label>
 
+                <label>
+                  تاريخ الورقة
+                  <input
+                    type="date"
+                    value={paperDate}
+                    onChange={(event) =>
+                      setPaperDate(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
                 <button type="submit" disabled={saving}>
-                  حفظ القيمة
+                  حفظ القيمة والتاريخ
                 </button>
               </form>
             )}
@@ -4362,65 +4646,73 @@ function PaperModal({
                 : 'استبدال الصورة'}
             </button>
 
-            {showImageForm && (
+                        {showImageForm && (
               <form
                 className="image-form"
                 onSubmit={replaceImage}
               >
-               <div className="paper-image-picker">
-  <span className="paper-image-picker-label">
-    صورة الورقة
-  </span>
+                <div className="paper-image-picker">
+                  <span className="paper-image-picker-label">
+                    صورة أو ملف PDF جديد للورقة
+                  </span>
 
-  <div className="paper-image-picker-actions">
-    <button
-      type="button"
-      className="camera-picker-button"
-      onClick={() => cameraInputRef.current?.click()}
-      aria-label="تصوير الورقة بالكاميرا"
-      title="تصوير بالكاميرا"
-    >
-      📷
-    </button>
+                  <div className="paper-image-picker-actions">
+                    <button
+                      type="button"
+                      className="camera-picker-button"
+                      onClick={() =>
+                        cameraInputRef.current?.click()
+                      }
+                      aria-label="تصوير الورقة بالكاميرا"
+                      title="تصوير بالكاميرا"
+                    >
+                      📷
+                    </button>
 
-    <button
-      type="button"
-      className="file-picker-button"
-      onClick={() => fileInputRef.current?.click()}
-      aria-label="اختيار صورة أو ملف من الهاتف"
-      title="اختيار صورة أو ملف"
-    >
-      🖼
-    </button>
-  </div>
+                    <button
+                      type="button"
+                      className="file-picker-button"
+                      onClick={() =>
+                        fileInputRef.current?.click()
+                      }
+                      aria-label="اختيار صورة أو PDF من الهاتف"
+                      title="اختيار صورة أو PDF"
+                    >
+                      🖼
+                    </button>
+                  </div>
 
-  <input
-    ref={cameraInputRef}
-    className="hidden-file-input"
-    type="file"
-    accept="image/*"
-    capture="environment"
-    onChange={(event) =>
-      setPaperFile(event.target.files?.[0] || null)
-    }
-  />
+                  <input
+                    ref={cameraInputRef}
+                    className="hidden-file-input"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) =>
+                      setNewImageFile(
+                        event.target.files?.[0] || null
+                      )
+                    }
+                  />
 
-  <input
-    ref={fileInputRef}
-    className="hidden-file-input"
-    type="file"
-    accept="image/*"
-    onChange={(event) =>
-      setPaperFile(event.target.files?.[0] || null)
-    }
-  />
+                  <input
+                    ref={fileInputRef}
+                    className="hidden-file-input"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(event) =>
+                      setNewImageFile(
+                        event.target.files?.[0] || null
+                      )
+                    }
+                  />
 
-  <p className="selected-image-name">
-    {paperFile
-      ? `الصورة المختارة: ${paperFile.name}`
-      : 'اختر طريقة إضافة الصورة.'}
-  </p>
-</div>
+                  <p className="selected-image-name">
+                    {newImageFile
+                      ? `الملف المختار: ${newImageFile.name}`
+                      : 'اختر طريقة إضافة الصورة أو الـPDF.'}
+                  </p>
+                </div>
 
                 <label>
                   وصف الصورة
@@ -4438,13 +4730,14 @@ function PaperModal({
 
                 <button type="submit" disabled={saving}>
                   {saving
-                    ? 'جارٍ رفع الصورة...'
+                    ? 'جارٍ رفع الملف...'
                     : 'حفظ الصورة الجديدة'}
                 </button>
               </form>
             )}
           </>
         )}
+
 
         <h3>سجل الصور</h3>
 
@@ -4475,7 +4768,9 @@ function PaperModal({
                     openHistoryImage(image.image_path)
                   }
                 >
-                  فتح الصورة
+                  {isPaperImagePdf(image.image_path)
+                    ? 'فتح PDF'
+                    : 'فتح الصورة'}
                 </button>
               </li>
             ))}

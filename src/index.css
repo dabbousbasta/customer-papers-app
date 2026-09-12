@@ -3022,3 +3022,100 @@ main {
   font-size: 0.82rem;
   font-weight: 800;
 }
+.paper-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pdf-thumbnail-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+.debt-report-list {
+  display: grid;
+  gap: 8px;
+}
+
+.debt-report-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #dbe6f0;
+  border-radius: 10px;
+  background: white;
+  text-align: right;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 4%);
+}
+
+.debt-report-row:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.debt-report-name {
+  color: #0f3d68;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.debt-report-count {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.debt-report-value {
+  color: #0f766e;
+  font-weight: 800;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.debt-report-bucket {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.debt-report-row,
+.debt-report-row * {
+  color: #1e293b;
+}
+
+.debt-report-name {
+  color: #0f3d68 !important;
+}
+
+.debt-report-value {
+  color: #0f766e !important;
+}
+
+.debt-report-count {
+  color: #64748b !important;
+}
+
+.debt-report-bucket-badge {
+  color: #b91c1c !important;
+}

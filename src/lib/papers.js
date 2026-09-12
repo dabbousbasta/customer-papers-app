@@ -227,6 +227,77 @@ export async function updatePaperAmount(
   return data
 }
 
+export async function updatePaperAmountAndDate(
+  paperId,
+  {
+    totalAmount,
+    paperDate
+  }
+) {
+  const user = await getCurrentUser()
+
+  const oldPaper = await getPaperActivityInfo(paperId)
+
+  const numericAmount =
+    totalAmount === '' ||
+    totalAmount === null ||
+    totalAmount === undefined
+      ? null
+      : Number(totalAmount)
+
+  if (
+    numericAmount !== null &&
+    Number.isNaN(numericAmount)
+  ) {
+    throw new Error('أدخل قيمة صحيحة للورقة')
+  }
+
+  const { data, error } = await supabase
+    .from('papers')
+    .update({
+      total_amount: numericAmount,
+      paper_date: paperDate,
+      updated_by: user.id
+    })
+    .eq('id', paperId)
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  try {
+    const customerName = getCustomerName(oldPaper)
+
+    await logActivity({
+      actionType: 'paper_amount_updated',
+      entityType: 'paper',
+      entityId: data.id,
+      customerId: data.customer_id,
+      paperId: data.id,
+      summary:
+        `تعديل ورقة الزبون: ${customerName} ` +
+        `القيمة من ${formatAmount(oldPaper.total_amount)} ` +
+        `إلى ${formatAmount(data.total_amount)}، ` +
+        `التاريخ ${data.paper_date}`,
+      details: {
+        old_total_amount: oldPaper.total_amount,
+        new_total_amount: data.total_amount,
+        old_paper_date: oldPaper.paper_date,
+        new_paper_date: data.paper_date
+      }
+    })
+  } catch (activityError) {
+    console.error(
+      'تعذر تسجيل تعديل الورقة',
+      activityError
+    )
+  }
+
+  return data
+}
+
 export async function updatePaperImagePath(
   paperId,
   imagePath

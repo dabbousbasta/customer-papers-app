@@ -233,9 +233,30 @@ export async function buildCustomerWhatsAppReport(
   return lines.join('\n')
 }
 
-export function openWhatsAppMessage(text) {
-  const url =
-    `https://wa.me/?text=${encodeURIComponent(text)}`
+function formatLebanesePhoneNumber(phone) {
+  if (!phone) {
+    return null
+  }
+
+  const digitsOnly = phone.replace(/[^\d]/g, '')
+
+  if (!digitsOnly) {
+    return null
+  }
+
+  const withoutLeadingZero = digitsOnly.startsWith('0')
+    ? digitsOnly.slice(1)
+    : digitsOnly
+
+  return `961${withoutLeadingZero}`
+}
+
+export function openWhatsAppMessage(text, phone = null) {
+  const formattedPhone = formatLebanesePhoneNumber(phone)
+
+  const url = formattedPhone
+    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`
 
   window.open(url, '_blank', 'noopener,noreferrer')
 }
