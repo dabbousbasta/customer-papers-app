@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>بحث فواتير الشراء</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #5e35b1;
+      --primary-dark: #4527a0;
+      --bg: #f5f7fb;
+      --text: #222;
+      --card: #fff;
+      --border: #ddd;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Tajawal', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      direction: rtl;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    #refreshBtn {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 9999;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 15px;
+      background: #198754;
+      color: #fff;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .22);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: .15s ease;
+    }
+
+    #refreshBtn:hover:not(:disabled) {
+      background: #146c43;
+      transform: translateY(-1px);
+    }
+
+    #refreshBtn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    #refreshBtn:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+    }
+
+    #refreshBtn.loading .refresh-icon {
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    main {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, .05);
+      margin-bottom: 14px;
+    }
+
+    .title {
+      font-size: 1.15rem;
+      font-weight: 900;
+      color: var(--primary);
+      margin-bottom: 10px;
+      letter-spacing: .2px;
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .filters-grid.extra {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .field label {
+      display: block;
+      font-size: .76rem;
+      margin-bottom: 4px;
+      color: #555;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 10px;
+      font-size: .9rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      font-family: inherit;
+      background: #fff;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(94, 53, 177, .12);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .actions-left {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: .9rem;
+      cursor: pointer;
+      font-weight: 700;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: #5e35b1;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #ffe0b2;
+      color: #5d4037;
+    }
+
+    .btn-primary:active,
+    .btn-secondary:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      font-size: 13px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .status.ok {
+      display: block;
+      color: #155724;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.err {
+      display: block;
+      color: #721c24;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+    }
+
+    .summary-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #444;
+    }
+
+    .summary-bar b {
+      color: var(--primary);
+    }
+
+    .table-wrap {
+      width: 100%;
+      max-height: 65vh;
+      overflow-x: auto;
+      overflow-y: auto;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin-top: 8px;
+      width: auto;
+      background-color: #fff;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--border);
+      padding: 9px 11px;
+      font-size: 14px;
+      vertical-align: top;
+      white-space: nowrap;
+      width: 1%;
+      min-width: 64px;
+    }
+
+    th {
+      background: #6a1b9a;
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+
+    th[data-key]:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: -3px;
+      background: #7e57c2;
+    }
+
+    th .arrow {
+      font-size: 11px;
+      opacity: .8;
+      margin-inline-start: 4px;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: #fff3e0;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f3e5f5;
+    }
+
+    tbody tr:hover {
+      outline: 2px solid rgba(94, 53, 177, .25);
+      outline-offset: -2px;
+    }
+
+    tbody tr.row-open {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+      background: #ede7f6 !important;
+    }
+
+    /* صفوف الـ spacer الخاصة بالـ virtual scrolling يجب ألا تُلوَّن أو تُحدَّد */
+    tr.va-spacer,
+    tr.va-spacer:nth-child(odd),
+    tr.va-spacer:nth-child(even) {
+      background: transparent !important;
+    }
+
+    tr.va-spacer:hover {
+      outline: none !important;
+    }
+
+    tr.va-spacer td {
+      border: none !important;
+      padding: 0 !important;
+      min-width: 0 !important;
+    }
+
+    .no-results {
+      text-align: center;
+      color: #c00;
+      padding: 16px;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    .skeleton-row td {
+      background: linear-gradient(
+        90deg,
+        #f0f0f0 25%,
+        #e6e6e6 37%,
+        #f0f0f0 63%
+      );
+      background-size: 400% 100%;
+      animation: shimmer 1.4s ease infinite;
+      color: transparent;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
+
+    .filters-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      background: #ede7f6;
+      color: var(--primary-dark);
+      padding: 9px 12px;
+      margin-bottom: 4px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: .9rem;
+    }
+
+    .filters-toggle .arrow {
+      font-size: 11px;
+      transition: transform .15s ease;
+    }
+
+    .filters-toggle[aria-expanded="true"] .arrow {
+      transform: rotate(180deg);
+    }
+
+    .extra-filters {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .extra-filters .filters-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .extra-filters .filters-grid.extra {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 10px;
+    }
+
+    .last-updated {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .row-actions-cell {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toggle-detail-btn,
+    .copy-row-btn {
+      background: #5e35b1;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      font-weight: 700;
+      font-family: inherit;
+      transition: transform .12s ease, background .12s ease;
+    }
+
+    .copy-row-btn {
+      background: #ede7f6;
+      color: var(--primary-dark);
+      font-size: 13px;
+    }
+
+    .toggle-detail-btn:hover {
+      background: #4527a0;
+      transform: scale(1.06);
+    }
+
+    .copy-row-btn:hover {
+      background: #d8cdf0;
+      transform: scale(1.06);
+    }
+
+    .toggle-detail-btn:active,
+    .copy-row-btn:active {
+      transform: scale(0.96);
+    }
+
+    .detail-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .close-btn {
+      background: #e0e0e0;
+      color: #333;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-weight: 700;
+      font-size: .85rem;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .close-btn:hover {
+      background: #d0d0d0;
+    }
+
+    #detailPanel[hidden] {
+      display: none;
+    }
+
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .mini-table th,
+    .mini-table td {
+      border: 1px solid #c7b3e6;
+      padding: 6px 8px;
+      white-space: nowrap;
+    }
+
+    .mini-table th {
+      background: #7e57c2;
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+      position: static;
+    }
+
+    .mini-table tbody tr:nth-child(odd) {
+      background: #f3e5f5;
+    }
+
+    .mini-table tbody tr:nth-child(even) {
+      background: #ede7f6;
+    }
+
+    /* ============ زر ولوحة تحليل البيانات الحالية (Product Intelligence) ============ */
+    .intel-trigger-card {
+      padding: 10px 14px;
+    }
+
+    .intel-trigger-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: .95rem;
+    }
+
+    .intel-trigger-btn:disabled {
+      background: #c9bfe0;
+    }
+
+    #intelTriggerCount {
+      font-weight: 700;
+      opacity: .85;
+    }
+
+    #productIntelPanel[hidden] {
+      display: none;
+    }
+
+    .intel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .intel-item-name {
+      font-weight: 900;
+      color: var(--primary-dark);
+      font-size: 1rem;
+    }
+
+    .intel-currency-block {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .intel-currency-block:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .intel-currency-label {
+      display: inline-block;
+      background: #ede7f6;
+      color: var(--primary-dark);
+      font-weight: 700;
+      font-size: .78rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat-card {
+      background: #faf9fd;
+      border: 1px solid #eae3f7;
+      border-radius: 10px;
+      padding: 9px 10px;
+      min-width: 0;
+    }
+
+    .stat-label {
+      font-size: .72rem;
+      color: #777;
+      font-weight: 700;
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-value {
+      font-size: .95rem;
+      font-weight: 900;
+      color: #222;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-value.up { color: #c0392b; }
+    .stat-value.down { color: #198754; }
+
+    .stat-sub {
+      font-size: .7rem;
+      color: #999;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ============ Toast ============ */
+    #toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #212529;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: .85rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+      z-index: 10000;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      .filters-grid,
+      .filters-grid.extra {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .extra-filters .filters-grid.extra {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      main {
+        padding: 10px;
+      }
+
+      #refreshBtn {
+        top: 8px;
+        left: 8px;
+        padding: 7px 11px;
+        font-size: .78rem;
+      }
+
+      th,
+      td {
+        font-size: 13px;
+        padding: 8px 9px;
+        min-width: 56px;
+      }
+
+      .table-wrap {
+        max-height: 60vh;
+      }
+
+      .filters-grid,
+      .filters-grid.extra {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .detail-panel-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .toggle-detail-btn,
+      .copy-row-btn {
+        padding: 8px 10px;
+        font-size: 16px;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .search-highlight {
+  background: #ffeb3b;
+  color: #000;
+  padding: 1px 3px;
+  border-radius: 4px;
+  font-weight: 900;
+  box-shadow: 0 0 0 1px rgba(255, 193, 7, .35);
+}
+  </style>
+</head>
+
+<body>
+
+  <button id="refreshBtn" type="button" disabled>
+    <span class="refresh-icon">🔄</span>
+    <span class="refresh-text">تحديث</span>
+  </button>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <main>
+    <section class="card">
+      <div class="title">بحث فواتير الشراء</div>
+
+      <div class="field">
+        <label for="searchItem">بحث عن الصنف</label>
+        <input
+          type="text"
+          id="searchItem"
+          placeholder="مثال: قسطل 25 تلحيم (كل كلمة تفصلها مسافة)"
+        />
+      </div>
+
+      <button
+        type="button"
+        class="filters-toggle"
+        id="toggleFiltersBtn"
+        aria-expanded="false"
+      >
+        <span id="toggleFiltersText">فلاتر إضافية</span>
+        <span class="arrow">▾</span>
+      </button>
+
+      <div class="extra-filters" id="extraFiltersWrap" hidden>
+        <div class="filters-grid">
+          <div class="field">
+            <label for="searchInvoice">كلمات بحث عن الفاتورة</label>
+            <input
+              type="text"
+              id="searchInvoice"
+              placeholder="مثال: 796 أو PI 796"
+            />
+          </div>
+
+          <div class="field">
+            <label for="searchSupplier">كلمات بحث عن المورد</label>
+            <input
+              type="text"
+              id="searchSupplier"
+              placeholder="مثال: الحنون 204160"
+            />
+          </div>
+        </div>
+
+        <div class="filters-grid extra">
+          <div class="field">
+            <label for="dateFrom">من تاريخ</label>
+            <input type="date" id="dateFrom" />
+          </div>
+
+          <div class="field">
+            <label for="dateTo">إلى تاريخ</label>
+            <input type="date" id="dateTo" />
+          </div>
+
+          <div class="field">
+            <label for="currencyFilter">العملة</label>
+            <select id="currencyFilter">
+              <option value="">الكل</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="actions-left">
+          <button class="btn-primary" id="exportExcel">
+            تصدير Excel
+          </button>
+
+          <button class="btn-secondary" id="clearSearch">
+            مسح كل الفلاتر
+          </button>
+        </div>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div class="small" id="countInfo">
+        ... جاري تحميل البيانات
+      </div>
+
+      <div class="last-updated" id="lastUpdated"></div>
+
+      <div class="summary-bar" id="summaryBar"></div>
+    </section>
+
+    <section class="card intel-trigger-card">
+      <button type="button" id="intelTriggerBtn" class="btn-primary intel-trigger-btn" disabled>
+        📊 تحليل البيانات الحالية <span id="intelTriggerCount">(0 عملية)</span>
+      </button>
+    </section>
+
+    <section class="card" id="productIntelPanel" hidden>
+      <div class="intel-header">
+        <div class="intel-item-name" id="intelItemName"></div>
+        <button type="button" class="close-btn" id="intelCloseBtn">✕ إغلاق التحليل</button>
+      </div>
+      <div id="intelBody"></div>
+    </section>
+
+    <section class="card">
+      <div class="title">النتائج</div>
+
+      <div class="table-wrap" id="tableScroll">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th style="width: 64px; text-align: center;">إجراءات</th>
+
+              <th data-key="invoiceNo" tabindex="0" role="button" aria-sort="none">
+                الفاتورة
+                <span class="arrow" data-arrow="invoiceNo"></span>
+              </th>
+
+              <th data-key="date" tabindex="0" role="button" aria-sort="none">
+                التاريخ
+                <span class="arrow" data-arrow="date"></span>
+              </th>
+
+              <th data-key="qty" tabindex="0" role="button" aria-sort="none">
+                العدد
+                <span class="arrow" data-arrow="qty"></span>
+              </th>
+
+              <th data-key="currency" tabindex="0" role="button" aria-sort="none">
+                العملة
+                <span class="arrow" data-arrow="currency"></span>
+              </th>
+
+              <th data-key="uprice" tabindex="0" role="button" aria-sort="none">
+                السعر
+                <span class="arrow" data-arrow="uprice"></span>
+              </th>
+
+              <th data-key="item" tabindex="0" role="button" aria-sort="none">
+                الصنف
+                <span class="arrow" data-arrow="item"></span>
+              </th>
+
+              <th data-key="supplier" tabindex="0" role="button" aria-sort="none">
+                المورد
+                <span class="arrow" data-arrow="supplier"></span>
+              </th>
+            </tr>
+          </thead>
+
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="detailPanel" hidden>
+      <div class="detail-panel-header">
+        <div class="title" id="detailTitle" style="margin-bottom:0;">تفاصيل الفاتورة</div>
+        <button type="button" class="close-btn" id="closeDetailBtn">إغلاق ✕</button>
+      </div>
+      <div class="table-wrap" id="detailTableWrap"></div>
+    </section>
+  </main>
+
+  <script>
+    /* ============================================================
+       الحالة العامة
+       allData: البيانات بعد المعالجة المسبقة (preprocessing) — تُحسب
+       مرة واحدة فقط بعد التحميل، وليس عند كل بحث/فرز/رسم.
+       invoiceMap: خريطة (فاتورة+سنة) -> صفوفها، تُبنى مرة واحدة.
+       ============================================================ */
+    let allData = [];
+    let currentResults = [];
+    let invoiceMap = new Map();
+    let sortKey = null;
+    let sortDir = 1;
+    let openDetailKey = null;   // مفتاح الفاتورة+السنة المفتوحة حالياً، لتمييز الصف في الجدول
+    let urlFiltersConsumed = false; // لضمان قراءة فلاتر الرابط مرة واحدة فقط عند أول تحميل
+
+    // Intl.Collator أسرع بكثير من استدعاء localeCompare مرات كثيرة
+    const collator = new Intl.Collator(undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+
+    // إعدادات الـ virtual scrolling
+    const OVERSCAN = 8;
+    let ROW_HEIGHT = 42;
+    let rowHeightMeasured = false;
+
+    const arabicDigits = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+    const latinDigits = ['0','1','2','3','4','5','6','7','8','9'];
+
+    /* ============================================================
+       أداة قياس أداء اختيارية لأغراض التطوير فقط — لا تعمل ولا
+       تُضيف أي عبء في الإنتاج إلا إذا فعّلها المستخدم صراحة عبر
+       ?debug=1 في الرابط أو localStorage.setItem('perfDebug','1').
+       ============================================================ */
+    const PERF_DEBUG =
+      /[?&]debug=1(&|$)/.test(location.search) ||
+      (() => { try { return localStorage.getItem('perfDebug') === '1'; } catch (e) { return false; } })();
+
+    const perfStats = {
+      fetch: null, parse: null, preprocess: null,
+      index: null, search: null, sort: null, render: null
+    };
+
+    function fmtMs(value) {
+      return value === null || value === undefined ? '-' : value.toFixed(1) + 'ms';
+    }
+
+    function perfLog() {
+      if (!PERF_DEBUG) return;
+
+      const lines = [
+        `Load(fetch): ${fmtMs(perfStats.fetch)}`,
+        `Parse: ${fmtMs(perfStats.parse)}`,
+        `Preprocess: ${fmtMs(perfStats.preprocess)}`,
+        `Index: ${fmtMs(perfStats.index)}`,
+        `Search: ${fmtMs(perfStats.search)}`,
+        `Sort: ${fmtMs(perfStats.sort)}`,
+        `Render: ${fmtMs(perfStats.render)}`,
+        `Rows: ${allData.length} → ${currentResults.length}`
+      ];
+
+      console.log('%c[Perf]', 'color:#5e35b1;font-weight:bold', lines.join(' | '));
+
+      let panel = document.getElementById('perfPanel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'perfPanel';
+        panel.style.cssText =
+          'position:fixed;bottom:8px;right:8px;z-index:99999;background:rgba(20,20,20,.88);' +
+          'color:#7CFC00;font-family:"IBM Plex Mono",monospace;font-size:11px;padding:8px 10px;' +
+          'border-radius:8px;line-height:1.6;direction:ltr;text-align:left;white-space:pre;';
+        document.body.appendChild(panel);
+      }
+      panel.textContent = lines.join('\n');
+    }
+
+    function normalizeForSearch(str) {
+      let text = String(str ?? '').toLowerCase();
+      arabicDigits.forEach((arabicDigit, index) => {
+        text = text.split(arabicDigit).join(latinDigits[index]);
+      });
+      return text;
+    }
+
+    function esc(value) {
+      return String(value ?? '')
+        .replace(/[&<>"']/g, character => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        })[character]);
+    }
+function highlightText(value, words) {
+  const text = String(value ?? '');
+
+  if (!text || !words || !words.length) {
+    return esc(text);
+  }
+
+  const normalizedText = normalizeForSearch(text);
+  const matches = [];
+
+  for (const word of words) {
+    const normalizedWord = normalizeForSearch(word).trim();
+
+    if (!normalizedWord) continue;
+
+    let startIndex = 0;
+
+    while (true) {
+      const index = normalizedText.indexOf(normalizedWord, startIndex);
+
+      if (index === -1) break;
+
+      matches.push({
+        start: index,
+        end: index + normalizedWord.length
+      });
+
+      startIndex = index + normalizedWord.length;
+    }
+  }
+
+  if (!matches.length) {
+    return esc(text);
+  }
+
+  matches.sort((a, b) => a.start - b.start);
+
+  const mergedMatches = [];
+
+  for (const match of matches) {
+    const lastMatch = mergedMatches[mergedMatches.length - 1];
+
+    if (!lastMatch || match.start > lastMatch.end) {
+      mergedMatches.push({ ...match });
+    } else if (match.end > lastMatch.end) {
+      lastMatch.end = match.end;
+    }
+  }
+
+  let result = '';
+  let lastIndex = 0;
+
+  for (const match of mergedMatches) {
+    result += esc(text.slice(lastIndex, match.start));
+    result += `<mark class="search-highlight">${esc(text.slice(match.start, match.end))}</mark>`;
+    lastIndex = match.end;
+  }
+
+  result += esc(text.slice(lastIndex));
+
+  return result;
+}
+    function toNumber(value) {
+      if (value === null || value === undefined || value === '') {
+        return NaN;
+      }
+
+      let text = normalizeForSearch(value).replace(/,/g, '').trim();
+      text = text.replace(/[^0-9.\-e+]/g, '');
+
+      if (text === '' || text === '-') {
+        return NaN;
+      }
+
+      const number = Number(text);
+      return Number.isNaN(number) ? NaN : number;
+    }
+
+    function numFmtVal(num, rawValue) {
+      if (num === null || Number.isNaN(num)) {
+        return rawValue ? esc(rawValue) : '';
+      }
+      return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    }
+
+    function priceFmtVal(num, rawValue) {
+      if (num === null || Number.isNaN(num)) {
+        return rawValue ? esc(rawValue) : '';
+      }
+      if (num === 0) return '0';
+      if (Math.abs(num) < 1) return num.toFixed(2);
+      return num.toLocaleString('en-US', { maximumSignificantDigits: 6 });
+    }
+
+    /* ============================================================
+       دمج parseDate() و getYearFromDate() السابقتين في دالة واحدة:
+       كلتاهما كانتا تُطبّقان normalizeForSearch() و split('/') على
+       نفس النص بشكل منفصل لكل صف أثناء preprocess() — توحيدهما
+       يزيل هذا التكرار.
+       ============================================================ */
+    function parseArabicDate(dateValue) {
+      if (!dateValue) return { dateNum: 0, year: null };
+
+      const parts = normalizeForSearch(dateValue).split('/');
+      if (parts.length !== 3) return { dateNum: 0, year: null };
+
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const year = parseInt(parts[2], 10);
+
+      if ([day, month, year].some(Number.isNaN)) {
+        return { dateNum: 0, year: null };
+      }
+
+      return { dateNum: year * 10000 + month * 100 + day, year };
+    }
+
+    function isoToComparable(isoDate) {
+      if (!isoDate) return null;
+
+      const parts = isoDate.split('-').map(Number);
+      const year = parts[0], month = parts[1], day = parts[2];
+
+      if (!year || !month || !day) return null;
+
+      return year * 10000 + month * 100 + day;
+    }
+
+    function formatDateTime(date) {
+      const pad = number => String(number).padStart(2, '0');
+      return (
+        pad(date.getDate()) + '/' + pad(date.getMonth() + 1) + '/' +
+        date.getFullYear() + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes())
+      );
+    }
+
+    function debounce(fn, wait) {
+      let timer = null;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), wait);
+      };
+    }
+
+    /* ============================================================
+       المعالجة المسبقة (Preprocessing) — تُنفَّذ مرة واحدة فقط
+       بعد كل تحميل ناجح للبيانات.
+       ============================================================ */
+    function preprocess(rawArray) {
+      const processed = new Array(rawArray.length);
+
+      for (let i = 0; i < rawArray.length; i++) {
+        const row = rawArray[i];
+        const { dateNum, year } = parseArabicDate(row.date);
+
+        processed[i] = {
+          invoiceNo: row.invoiceNo,
+          date: row.date,
+          qty: row.qty,
+          currency: row.currency,
+          uprice: row.uprice,
+          item: row.item,
+          supplier: row.supplier,
+
+          _itemNorm: normalizeForSearch(row.item || ''),
+          _invoiceNorm: normalizeForSearch(row.invoiceNo || ''),
+          _supplierNorm: normalizeForSearch(row.supplier || ''),
+          _dateNum: dateNum,
+          _qtyNum: toNumber(row.qty),
+          _priceNum: toNumber(row.uprice),
+          _year: year,
+          _invYearKey: String(row.invoiceNo ?? '').trim() + '__' + (year ?? ''),
+          // موضع الصف الثابت في ملف purchases.json الأصلي — يُستخدم فقط
+          // كقاعدة تعادل (tie-breaker) حتمية عند تساوي التاريخ في تحليل
+          // Product Intelligence، ولا علاقة له بترتيب الجدول أو الفرز.
+          _rowIndex: i
+        };
+      }
+
+      return processed;
+    }
+
+    function buildInvoiceMap(data) {
+      const map = new Map();
+
+      for (const row of data) {
+        if (!row._year) continue;
+
+        const key = row._invYearKey;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(row);
+      }
+
+      return map;
+    }
+
+    /* ============================================================
+       تخزين مؤقت عبر IndexedDB
+       ============================================================ */
+    const DB_NAME = 'purchasesCacheDB';
+    const STORE_NAME = 'cache';
+    const CACHE_KEY = 'purchases_v1';
+
+    function idbOpen() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB غير متاح'));
+          return;
+        }
+
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          req.result.createObjectStore(STORE_NAME);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbGet(key) {
+      try {
+        const db = await idbOpen();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, 'readonly');
+          const req = tx.objectStore(STORE_NAME).get(key);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (error) {
+        return null;
+      }
+    }
+
+    async function idbSet(key, value) {
+      try {
+        const db = await idbOpen();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          tx.objectStore(STORE_NAME).put(value, key);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (error) {
+        return false;
+      }
+    }
+
+    /* ============================================================
+       فحص وجود تحديث عبر purchases-data/meta.json بدل GitHub Commits
+       API — يزيل الاعتماد على حصة api.github.com (60 طلب/ساعة لكل
+       IP) المشتركة بين كل مستخدمي المكتب. الملف يجب أن يحتوي:
+       { "version": "...", "lastUpdate": "2026-08-22T10:00:00+03:00" }
+       ويجب تحديث "version" (أو "lastUpdate") مع كل رفع لبيانات جديدة.
+       ============================================================ */
+    async function fetchLatestMeta() {
+      const response = await fetch('purchases-data/meta.json?v=' + Date.now(), {
+        cache: 'no-store'
+      });
+
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+
+      const meta = await response.json();
+
+      if (!meta || (!meta.version && !meta.lastUpdate)) {
+        throw new Error('meta.json لا يحتوي بيانات صالحة');
+      }
+
+      return {
+        version: meta.version || meta.lastUpdate,
+        lastUpdate: meta.lastUpdate || null
+      };
+    }
+
+    // تحميل النص الخام لملف البيانات فقط (بدون parse)، مع قياس وقت التحميل
+    async function fetchPurchasesJsonRaw() {
+      const t0 = performance.now();
+      const response = await fetch('purchases-data/purchases.json?v=' + Date.now(), {
+        cache: 'no-store'
+      });
+
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+
+      const text = await response.text();
+      return { text, fetchTime: performance.now() - t0 };
+    }
+
+    // الحد الأدنى بين استدعاءين لفحص meta.json لنفس الجهاز، لتفادي
+    // إزعاج الشبكة بلا داعٍ عند إعادة فتح الصفحة مراراً خلال دقائق
+    const META_CHECK_MIN_INTERVAL_MS = 3 * 60 * 1000;
+
+    // تصنيف أخطاء التحميل إلى رسائل واضحة ومختلفة بدل رسالة عامة واحدة
+    function classifyLoadError(error) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return 'لا يوجد اتصال بالإنترنت حالياً. سيتم الاعتماد على آخر نسخة محفوظة إن وجدت.';
+      }
+      if (error instanceof SyntaxError) {
+        return 'تعذّرت قراءة ملف البيانات — تنسيق JSON غير صالح.';
+      }
+      if (error && typeof error.message === 'string' && error.message.startsWith('HTTP ')) {
+        return `تعذّر تحميل ملف البيانات من الخادم (${error.message}).`;
+      }
+      if (error instanceof TypeError) {
+        return 'تعذّر الاتصال بالخادم — تحقق من اتصال الإنترنت.';
+      }
+      return 'حدث خطأ غير متوقع أثناء تحديث البيانات: ' + (error && error.message ? error.message : error);
+    }
+
+    function showLastFileUpdate(dateString) {
+      const element = document.getElementById('lastUpdated');
+      if (!dateString) {
+        element.textContent = '';
+        return;
+      }
+      const parsed = new Date(dateString);
+      element.textContent = Number.isNaN(parsed.getTime())
+        ? ''
+        : 'آخر تحديث للملف: ' + formatDateTime(parsed);
+    }
+
+    const STORAGE_KEY = 'purchaseFiltersState_v1';
+
+    function saveFiltersState() {
+      try {
+        const state = {
+          searchItem: document.getElementById('searchItem').value,
+          searchInvoice: document.getElementById('searchInvoice').value,
+          searchSupplier: document.getElementById('searchSupplier').value,
+          dateFrom: document.getElementById('dateFrom').value,
+          dateTo: document.getElementById('dateTo').value,
+          currency: document.getElementById('currencyFilter').value,
+          extraOpen: !document.getElementById('extraFiltersWrap').hidden
+        };
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (error) {
+        // تجاهل أخطاء التخزين
+      }
+    }
+
+    function restoreFiltersState() {
+      let state = null;
+
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) state = JSON.parse(raw);
+      } catch (error) {
+        state = null;
+      }
+
+      if (!state) return;
+
+      document.getElementById('searchItem').value = state.searchItem || '';
+      document.getElementById('searchInvoice').value = state.searchInvoice || '';
+      document.getElementById('searchSupplier').value = state.searchSupplier || '';
+      document.getElementById('dateFrom').value = state.dateFrom || '';
+      document.getElementById('dateTo').value = state.dateTo || '';
+
+      if (state.currency) {
+        document.getElementById('currencyFilter').value = state.currency;
+      }
+
+      if (state.extraOpen) {
+        setExtraFiltersOpen(true);
+      }
+    }
+
+    /* ============================================================
+       Shareable URL — يقرأ/يكتب الفلاتر كـ query params باستخدام
+       URLSearchParams، بمفاتيح مختصرة، وبلا أي قيم فارغة في الرابط.
+       ============================================================ */
+    const URL_PARAM_MAP = {
+      searchItem: 'q',
+      searchInvoice: 'inv',
+      searchSupplier: 'sup',
+      dateFrom: 'from',
+      dateTo: 'to',
+      currencyFilter: 'cur'
+    };
+
+    function getFiltersFromURL() {
+      const params = new URLSearchParams(location.search);
+      const result = {};
+      let hasAny = false;
+
+      for (const [fieldId, paramKey] of Object.entries(URL_PARAM_MAP)) {
+        if (params.has(paramKey)) {
+          result[fieldId] = params.get(paramKey) || '';
+          hasAny = true;
+        }
+      }
+
+      return hasAny ? result : null;
+    }
+
+    function applyFiltersToInputs(state) {
+      if (state.searchItem !== undefined) document.getElementById('searchItem').value = state.searchItem;
+      if (state.searchInvoice !== undefined) document.getElementById('searchInvoice').value = state.searchInvoice;
+      if (state.searchSupplier !== undefined) document.getElementById('searchSupplier').value = state.searchSupplier;
+      if (state.dateFrom !== undefined) document.getElementById('dateFrom').value = state.dateFrom;
+      if (state.dateTo !== undefined) document.getElementById('dateTo').value = state.dateTo;
+      if (state.currencyFilter !== undefined) document.getElementById('currencyFilter').value = state.currencyFilter;
+
+      if (state.searchInvoice || state.searchSupplier || state.dateFrom || state.dateTo || state.currencyFilter) {
+        setExtraFiltersOpen(true);
+      }
+    }
+
+    // تُستخدم مرة واحدة فقط عند أول تحميل: تُفضَّل فلاتر الرابط إن
+    // وُجدت، وإلا يُستخدم آخر فلتر محفوظ محلياً كالسابق تماماً.
+    function restoreFiltersOnLoad() {
+      if (!urlFiltersConsumed) {
+        urlFiltersConsumed = true;
+        const urlState = getFiltersFromURL();
+        if (urlState) {
+          applyFiltersToInputs(urlState);
+          return;
+        }
+      }
+      restoreFiltersState();
+    }
+
+    function updateURLFromFilters() {
+      const params = new URLSearchParams();
+
+      const values = {
+        searchItem: document.getElementById('searchItem').value.trim(),
+        searchInvoice: document.getElementById('searchInvoice').value.trim(),
+        searchSupplier: document.getElementById('searchSupplier').value.trim(),
+        dateFrom: document.getElementById('dateFrom').value,
+        dateTo: document.getElementById('dateTo').value,
+        currencyFilter: document.getElementById('currencyFilter').value
+      };
+
+      for (const [fieldId, paramKey] of Object.entries(URL_PARAM_MAP)) {
+        if (values[fieldId]) params.set(paramKey, values[fieldId]);
+      }
+
+      const query = params.toString();
+      const newURL = query ? `${location.pathname}?${query}` : location.pathname;
+      history.replaceState(null, '', newURL);
+    }
+
+    function setExtraFiltersOpen(open) {
+      const wrapper = document.getElementById('extraFiltersWrap');
+      const button = document.getElementById('toggleFiltersBtn');
+      const text = document.getElementById('toggleFiltersText');
+
+      wrapper.hidden = !open;
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      text.textContent = open ? 'إخفاء الفلاتر الإضافية' : 'فلاتر إضافية';
+    }
+
+    function showSkeleton() {
+      const tbody = document.getElementById('resultsBody');
+      let html = '';
+
+      for (let i = 0; i < 8; i++) {
+        html += `<tr class="skeleton-row"><td colspan="8">جاري التحميل...</td></tr>`;
+      }
+
+      tbody.innerHTML = html;
+    }
+
+    function populateCurrencyOptions() {
+      const select = document.getElementById('currencyFilter');
+
+      const currencies = [
+        ...new Set(allData.map(row => (row.currency || '').trim()).filter(Boolean))
+      ].sort((a, b) => a.localeCompare(b));
+
+      const currentValue = select.value;
+
+      select.innerHTML =
+        '<option value="">الكل</option>' +
+        currencies.map(currency => `<option value="${esc(currency)}">${esc(currency)}</option>`).join('');
+
+      if (currencies.includes(currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
+    /* ============================================================
+       تحميل البيانات
+       ============================================================ */
+    async function loadData(options = {}) {
+      const forceFresh = !!options.forceFresh;
+
+      const status = document.getElementById('status');
+      const refreshButton = document.getElementById('refreshBtn');
+      const refreshIcon = refreshButton.querySelector('.refresh-icon');
+      const refreshText = refreshButton.querySelector('.refresh-text');
+      const hadOldData = allData.length > 0;
+
+      refreshButton.disabled = true;
+      refreshButton.classList.add('loading');
+      refreshIcon.textContent = '⟳';
+      refreshText.textContent = 'جاري التحديث';
+
+      let cachedEntry = null;
+
+      if (!forceFresh && !hadOldData) {
+        cachedEntry = await idbGet(CACHE_KEY);
+
+        if (cachedEntry && Array.isArray(cachedEntry.json) && cachedEntry.json.length) {
+          const tPre0 = performance.now();
+          allData = preprocess(cachedEntry.json);
+          perfStats.preprocess = performance.now() - tPre0;
+
+          const tIdx0 = performance.now();
+          invoiceMap = buildInvoiceMap(allData);
+          perfStats.index = performance.now() - tIdx0;
+          perfStats.fetch = 0;
+          perfStats.parse = 0;
+
+          populateCurrencyOptions();
+          restoreFiltersOnLoad();
+          search();
+
+          document.getElementById('countInfo').textContent =
+            `تم تحميل ${allData.length} سجل (من نسخة محفوظة مسبقاً).`;
+
+          showLastFileUpdate(cachedEntry.metaLastUpdate || null);
+        }
+      }
+
+      if (!cachedEntry && !hadOldData) {
+        showSkeleton();
+        document.getElementById('countInfo').textContent = '... جاري تحميل البيانات';
+      }
+
+      const withinThrottle =
+        !forceFresh &&
+        cachedEntry &&
+        cachedEntry.checkedAt &&
+        (Date.now() - cachedEntry.checkedAt) < META_CHECK_MIN_INTERVAL_MS;
+
+      try {
+        if (withinThrottle) {
+          status.className = 'status ok';
+          status.textContent = '✅ البيانات محدثة (تم التحقق مؤخراً)';
+          status.style.display = 'block';
+          return;
+        }
+
+        const willAlwaysFetchFresh = forceFresh || !cachedEntry;
+        const jsonRawPromise = willAlwaysFetchFresh ? fetchPurchasesJsonRaw() : null;
+
+        let remoteMeta = null;
+        try {
+          remoteMeta = await fetchLatestMeta();
+        } catch (error) {
+          // meta.json غير متاح أو غير صالح؛ سيُعتمد على جلب البيانات
+          // مباشرة كحل احتياطي دون كسر تجربة الاستخدام
+          remoteMeta = null;
+        }
+
+        const shouldFetchFresh =
+          willAlwaysFetchFresh ||
+          (remoteMeta !== null && cachedEntry.metaVersion !== remoteMeta.version);
+
+        if (shouldFetchFresh) {
+          const { text, fetchTime } = jsonRawPromise
+            ? await jsonRawPromise
+            : await fetchPurchasesJsonRaw();
+
+          perfStats.fetch = fetchTime;
+
+          const tParse0 = performance.now();
+          const json = JSON.parse(text);
+          perfStats.parse = performance.now() - tParse0;
+
+          if (!Array.isArray(json)) {
+            throw new Error('صيغة البيانات غير صحيحة، يجب أن تكون Array');
+          }
+
+          const tPre0 = performance.now();
+          allData = preprocess(json);
+          perfStats.preprocess = performance.now() - tPre0;
+
+          const tIdx0 = performance.now();
+          invoiceMap = buildInvoiceMap(allData);
+          perfStats.index = performance.now() - tIdx0;
+
+          populateCurrencyOptions();
+
+          document.getElementById('countInfo').textContent = `تم تحميل ${allData.length} سجل.`;
+
+          if (json.length === 0) {
+            status.className = 'status err';
+            status.textContent = '⚠️ ملف البيانات فارغ حالياً (0 سجل).';
+          } else {
+            status.className = 'status ok';
+            status.textContent = '✅ تم تحديث البيانات بنجاح';
+          }
+          status.style.display = 'block';
+
+          restoreFiltersOnLoad();
+          search();
+          showLastFileUpdate(remoteMeta ? remoteMeta.lastUpdate : null);
+
+          idbSet(CACHE_KEY, {
+            json,
+            metaVersion: remoteMeta ? remoteMeta.version : null,
+            metaLastUpdate: remoteMeta ? remoteMeta.lastUpdate : null,
+            checkedAt: Date.now()
+          });
+
+        } else if (cachedEntry) {
+          showLastFileUpdate(cachedEntry.metaLastUpdate || (remoteMeta ? remoteMeta.lastUpdate : null));
+          status.className = 'status ok';
+          status.textContent = '✅ البيانات محدثة (من الذاكرة المؤقتة)';
+          status.style.display = 'block';
+
+          idbSet(CACHE_KEY, { ...cachedEntry, checkedAt: Date.now() });
+        }
+
+      } catch (error) {
+        console.error(error);
+
+        status.className = 'status err';
+        status.textContent = '❌ ' + classifyLoadError(error);
+        status.style.display = 'block';
+
+        if (!allData.length) {
+          document.getElementById('resultsBody').innerHTML = `
+            <tr>
+              <td colspan="8" class="no-results">
+                تعذر تحميل البيانات. تحقق من وجود الملف:
+                purchases-data/purchases.json
+              </td>
+            </tr>
+          `;
+        }
+
+      } finally {
+        refreshButton.disabled = false;
+        refreshButton.classList.remove('loading');
+        refreshIcon.textContent = '🔄';
+        refreshText.textContent = 'تحديث';
+      }
+    }
+
+    function updateArrows() {
+      document.querySelectorAll('th[data-key]').forEach(th => {
+        const key = th.getAttribute('data-key');
+        const arrowEl = th.querySelector('.arrow');
+
+        if (key === sortKey) {
+          arrowEl.textContent = sortDir === 1 ? '▲' : '▼';
+          th.setAttribute('aria-sort', sortDir === 1 ? 'ascending' : 'descending');
+        } else {
+          arrowEl.textContent = '';
+          th.setAttribute('aria-sort', 'none');
+        }
+      });
+    }
+
+    function renderSummary(rows) {
+      const summaryBar = document.getElementById('summaryBar');
+
+      if (!rows.length) {
+        summaryBar.innerHTML = '';
+        return;
+      }
+
+      const totalsByCurrency = {};
+      let totalQuantity = 0;
+
+      for (const row of rows) {
+        const currency = (row.currency || 'بدون عملة').trim() || 'بدون عملة';
+        const quantity = Number.isNaN(row._qtyNum) ? 0 : row._qtyNum;
+        const price = Number.isNaN(row._priceNum) ? 0 : row._priceNum;
+
+        totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + quantity * price;
+
+        if (!Number.isNaN(row._qtyNum)) {
+          totalQuantity += row._qtyNum;
+        }
+      }
+
+      const totalsHtml = Object.entries(totalsByCurrency)
+        .map(([currency, total]) => `
+          <span>
+            إجمالي ${esc(currency)}:
+            <b>${total.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b>
+          </span>
+        `)
+        .join('');
+
+      summaryBar.innerHTML = `
+        <span>
+          عدد الأصناف الكلي:
+          <b>${totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b>
+        </span>
+      ` + totalsHtml;
+    }
+
+    /* ============================================================
+       Product Intelligence — تحليل يدوي بالكامل، يُحسب فقط عند
+       ضغط المستخدم على زر "📊 تحليل البيانات الحالية"، ولا يُحسب
+       تلقائياً أثناء الكتابة/البحث/الفرز/التمرير (صفر تكلفة أداء
+       في المسار الحرج). لا يوجد أي شرط على تطابق اسم الصنف — يتم
+       تحليل currentResults كما هي تماماً، مقسّمة حسب العملة فقط.
+
+       الترتيب الزمني: يعتمد حصراً على _dateNum الحقيقي، وليس على
+       ترتيب currentResults الحالي (الذي يتغيّر بفرز الأعمدة). عند
+       تساوي عدة عمليات بنفس التاريخ، يُستخدم _rowIndex (موضع الصف
+       الثابت في ملف purchases.json الأصلي) كقاعدة تعادل حتمية —
+       الأحدث بينها = صاحب أكبر _rowIndex، وهو ثابت دائماً بصرف
+       النظر عن أي فرز أو فلترة.
+       ============================================================ */
+    function compareForRecency(a, b) {
+      if (b._dateNum !== a._dateNum) return b._dateNum - a._dateNum;
+      return b._rowIndex - a._rowIndex;
+    }
+
+    function computeProductIntelligence(rows) {
+      if (!rows.length) return null;
+
+      const byCurrency = new Map();
+
+      for (const row of rows) {
+        const currency = (row.currency || 'بدون عملة').trim() || 'بدون عملة';
+        if (!byCurrency.has(currency)) byCurrency.set(currency, []);
+        byCurrency.get(currency).push(row);
+      }
+
+      const currencyStats = [];
+
+      for (const [currency, currencyRows] of byCurrency.entries()) {
+        const validPriceRows = currencyRows.filter(row => !Number.isNaN(row._priceNum));
+        if (!validPriceRows.length) continue;
+
+        // ترتيب تنازلي حسب (التاريخ الحقيقي، ثم _rowIndex عند التعادل)
+        // — نتيجة حتمية 100% بصرف النظر عن ترتيب currentResults المُدخَل.
+        const sortedByDateDesc = validPriceRows.slice().sort(compareForRecency);
+        const lastPurchase = sortedByDateDesc[0];
+        const previousPurchase = sortedByDateDesc.find(row => row._dateNum < lastPurchase._dateNum) || null;
+
+        const prices = validPriceRows.map(row => row._priceNum);
+        const minPrice = prices.reduce((min, p) => Math.min(min, p), Infinity);
+        const maxPrice = prices.reduce((max, p) => Math.max(max, p), -Infinity);
+        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+
+        // أفضل مورد سعراً = أقل متوسط سعر ضمن النتائج المحلَّلة، لنفس
+        // العملة فقط (وليس أقل سعر مفرد، لتفادي تحيّز حالة استثنائية).
+        // عند التعادل بالمتوسط: عدد عمليات أكبر، ثم اسم المورد أبجدياً
+        // (Intl.Collator) كقاعدة تعادل نهائية حتمية.
+        const bySupplier = new Map();
+        for (const row of validPriceRows) {
+          const supplier = (row.supplier || '').trim() || 'غير محدد';
+          if (!bySupplier.has(supplier)) bySupplier.set(supplier, []);
+          bySupplier.get(supplier).push(row._priceNum);
+        }
+
+        const supplierEntries = Array.from(bySupplier.entries()).map(([supplier, supplierPrices]) => ({
+          supplier,
+          avg: supplierPrices.reduce((sum, p) => sum + p, 0) / supplierPrices.length,
+          count: supplierPrices.length
+        }));
+
+        supplierEntries.sort((a, b) => {
+          if (Math.abs(a.avg - b.avg) > 1e-9) return a.avg - b.avg;
+          if (a.count !== b.count) return b.count - a.count;
+          return collator.compare(a.supplier, b.supplier);
+        });
+
+        const bestSupplierEntry = supplierEntries[0] || null;
+
+        let priceChange = null;
+        if (previousPurchase) {
+          const diff = lastPurchase._priceNum - previousPurchase._priceNum;
+          const pct = previousPurchase._priceNum !== 0 ? (diff / previousPurchase._priceNum) * 100 : null;
+          priceChange = { diff, pct, direction: diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat') };
+        }
+
+        currencyStats.push({
+          currency,
+          count: validPriceRows.length,
+          lastPrice: lastPurchase._priceNum,
+          lastSupplier: (lastPurchase.supplier || '').trim() || 'غير محدد',
+          lastDate: lastPurchase.date,
+          minPrice,
+          maxPrice,
+          avgPrice,
+          bestSupplier: bestSupplierEntry ? bestSupplierEntry.supplier : null,
+          bestSupplierAvg: bestSupplierEntry ? bestSupplierEntry.avg : null,
+          priceChange
+        });
+      }
+
+      if (!currencyStats.length) return null;
+
+      return { totalCount: rows.length, currencyStats };
+    }
+
+    // تُستدعى فقط عند ضغط زر "تحليل البيانات الحالية" — وليس أثناء
+    // الكتابة/البحث/الفرز/التمرير.
+    function computeAndShowProductIntelligence() {
+      if (!currentResults.length) return; // الزر معطَّل أصلاً في هذه الحالة، حماية إضافية فقط
+
+      const intel = computeProductIntelligence(currentResults);
+      const panel = document.getElementById('productIntelPanel');
+
+      if (!intel) {
+        panel.hidden = true;
+        return;
+      }
+
+      document.getElementById('intelItemName').textContent =
+        `📊 تحليل النتائج الحالية (${intel.totalCount} عملية)`;
+
+      const blocksHtml = intel.currencyStats.map(stats => {
+        let changeHtml;
+
+        if (!stats.priceChange) {
+          changeHtml = `<div class="stat-value">—</div><div class="stat-sub">لا توجد عملية شراء سابقة للمقارنة</div>`;
+        } else {
+          const { diff, pct, direction } = stats.priceChange;
+          const arrow = direction === 'up' ? '↑' : (direction === 'down' ? '↓' : '→');
+          const cls = direction === 'up' ? 'up' : (direction === 'down' ? 'down' : '');
+          const sign = diff > 0 ? '+' : '';
+          const pctText = pct !== null ? ` (${sign}${pct.toFixed(1)}%)` : '';
+          changeHtml = `<div class="stat-value ${cls}">${arrow} ${sign}${priceFmtVal(diff)}${pctText}</div>`;
+        }
+
+        return `
+          <div class="intel-currency-block">
+            ${intel.currencyStats.length > 1 ? `<span class="intel-currency-label">${esc(stats.currency)}</span>` : ''}
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">آخر سعر شراء</div>
+                <div class="stat-value">${priceFmtVal(stats.lastPrice)} ${esc(stats.currency)}</div>
+                <div class="stat-sub">${esc(stats.lastDate)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">تغيّر السعر</div>
+                ${changeHtml}
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">أقل سعر</div>
+                <div class="stat-value">${priceFmtVal(stats.minPrice)} ${esc(stats.currency)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">أعلى سعر</div>
+                <div class="stat-value">${priceFmtVal(stats.maxPrice)} ${esc(stats.currency)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">متوسط السعر</div>
+                <div class="stat-value">${priceFmtVal(stats.avgPrice)} ${esc(stats.currency)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">عدد مرات الشراء</div>
+                <div class="stat-value">${stats.count}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">آخر مورد</div>
+                <div class="stat-value">${esc(stats.lastSupplier)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">أفضل مورد سعراً</div>
+                <div class="stat-value">${esc(stats.bestSupplier || '—')}</div>
+                <div class="stat-sub">${stats.bestSupplier ? 'متوسط ' + priceFmtVal(stats.bestSupplierAvg) + ' ' + esc(stats.currency) : ''}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('intelBody').innerHTML = blocksHtml;
+      panel.hidden = false;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideProductIntelligence() {
+      const panel = document.getElementById('productIntelPanel');
+      if (panel) panel.hidden = true;
+    }
+
+    // تُحدَّث في كل مرة تتغيّر فيها currentResults (أي داخل search()
+    // فقط) — تعرض عدد النتائج الحالية على الزر وتُعطِّله عند عدم
+    // وجود نتائج، دون حساب أي تحليل فعلي.
+    function updateIntelTriggerButton() {
+      const btn = document.getElementById('intelTriggerBtn');
+      const countLabel = document.getElementById('intelTriggerCount');
+      const count = currentResults.length;
+
+      countLabel.textContent = `(${count} عملية)`;
+      btn.disabled = count === 0;
+    }
+
+    function buildMiniTable(rows) {
+  if (!rows || !rows.length) return '';
+
+  const itemSearchWords = normalizeForSearch(
+    document.getElementById('searchItem').value.trim()
+  )
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const header = `
+    <tr>
+      <th>الفاتورة</th>
+      <th>التاريخ</th>
+      <th>العدد</th>
+      <th>العملة</th>
+      <th>السعر</th>
+      <th>الصنف</th>
+      <th>المورد</th>
+    </tr>
+  `;
+
+  const body = rows.map(row => `
+    <tr>
+      <td>${esc(row.invoiceNo)}</td>
+      <td>${esc(row.date)}</td>
+      <td>${numFmtVal(row._qtyNum, row.qty)}</td>
+      <td>${esc(row.currency)}</td>
+      <td>${priceFmtVal(row._priceNum, row.uprice)}</td>
+      <td>${highlightText(row.item, itemSearchWords)}</td>
+      <td>${esc(row.supplier)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <table class="mini-table">
+      <thead>${header}</thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+}
+
+    function openDetailPanel(invoiceNo, year) {
+      const key = String(invoiceNo).trim() + '__' + (year || '');
+      const rows = invoiceMap.get(key) || [];
+
+      openDetailKey = key;
+
+      document.getElementById('detailTitle').textContent =
+        `تفاصيل الفاتورة رقم ${invoiceNo} — سنة ${year || ''} (${rows.length} صنف)`;
+
+      if (!rows.length) {
+        document.getElementById('detailTableWrap').innerHTML = `
+          <div class="no-results">
+            تعذّر عرض تفاصيل هذه الفاتورة — تاريخ الفاتورة غير صالح أو البيانات ناقصة.
+          </div>
+        `;
+      } else {
+        document.getElementById('detailTableWrap').innerHTML = buildMiniTable(rows);
+      }
+
+      const panel = document.getElementById('detailPanel');
+      panel.hidden = false;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      renderVirtual(); // لتحديث تمييز الصف المفتوح في الجدول الرئيسي
+    }
+
+    // تُغلَق لوحة التفاصيل تلقائياً عند أي بحث/فرز/فلترة جديدة حتى لا
+    // تبقى تعرض تفاصيل فاتورة لم تعد ذات صلة بالنتائج الحالية.
+    // ملاحظة: لا تستدعي renderVirtual() هنا كي لا يتكرر الرسم في
+    // المسارات (مثل search()) التي أصلاً ستستدعي renderVirtual() بعدها.
+    function closeDetailPanel() {
+      const panel = document.getElementById('detailPanel');
+      if (panel) panel.hidden = true;
+      openDetailKey = null;
+    }
+
+    /* ============================================================
+       Nice-to-have: نسخ بيانات الصف بصيغة نصية جاهزة للصق في
+       واتساب/إكسل/البريد.
+       ============================================================ */
+    function formatRowForCopy(row) {
+      return [
+        `رقم الفاتورة: ${row.invoiceNo || ''}`,
+        `التاريخ: ${row.date || ''}`,
+        `الصنف: ${row.item || ''}`,
+        `المورد: ${row.supplier || ''}`,
+        `الكمية: ${row.qty || ''}`,
+        `السعر: ${row.uprice || ''}`,
+        `العملة: ${row.currency || ''}`
+      ].join('\n');
+    }
+
+    let toastTimer = null;
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    async function copyRowToClipboard(row) {
+      const text = formatRowForCopy(row);
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          // fallback للمتصفحات القديمة أو الاتصال غير الآمن (http بدون https)
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        showToast('تم النسخ ✓');
+      } catch (error) {
+        showToast('تعذّر النسخ');
+      }
+    }
+
+    function rowHtml(row, index) {
+  const itemSearchWords = normalizeForSearch(
+    document.getElementById('searchItem').value.trim()
+  )
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const isOpen = openDetailKey !== null && row._invYearKey === openDetailKey;
+
+  return `
+    <tr class="${isOpen ? 'row-open' : ''}">
+      <td style="text-align: center;">
+        <div class="row-actions-cell">
+          <button
+            class="toggle-detail-btn"
+            type="button"
+            data-inv="${esc(row.invoiceNo)}"
+            data-year="${esc(row._year)}"
+            title="عرض كل أصناف الفاتورة بنفس السنة"
+          >➕</button>
+          <button
+            class="copy-row-btn"
+            type="button"
+            data-row-idx="${index}"
+            title="نسخ بيانات الصف"
+          >📋</button>
+        </div>
+      </td>
+      <td>${esc(row.invoiceNo)}</td>
+      <td>${esc(row.date)}</td>
+      <td>${numFmtVal(row._qtyNum, row.qty)}</td>
+      <td>${esc(row.currency)}</td>
+      <td>${priceFmtVal(row._priceNum, row.uprice)}</td>
+      <td>${highlightText(row.item, itemSearchWords)}</td>
+      <td>${esc(row.supplier)}</td>
+    </tr>
+  `;
+}
+
+    /* ============================================================
+       Virtual Scrolling
+       ============================================================ */
+    function renderVirtual() {
+      const container = document.getElementById('tableScroll');
+      const tbody = document.getElementById('resultsBody');
+      const total = currentResults.length;
+
+      if (!total) {
+        const message = allData.length === 0
+          ? 'لا توجد بيانات محمّلة حالياً'
+          : 'لا توجد نتائج مطابقة لبحثك الحالي';
+
+        tbody.innerHTML = `
+          <tr><td colspan="8" class="no-results">${message}</td></tr>
+        `;
+        document.getElementById('countInfo').textContent =
+          `عدد النتائج: 0 من إجمالي ${allData.length}`;
+        renderSummary([]);
+        updateArrows();
+        return;
+      }
+
+      const viewportHeight = container.clientHeight || 400;
+      const rowH = ROW_HEIGHT;
+      const visibleCount = Math.ceil(viewportHeight / rowH) + OVERSCAN * 2;
+
+      let startIndex = Math.floor(container.scrollTop / rowH) - OVERSCAN;
+      if (startIndex < 0) startIndex = 0;
+
+      let endIndex = startIndex + visibleCount;
+      if (endIndex > total) endIndex = total;
+      if (startIndex > endIndex) startIndex = endIndex;
+
+      const topHeight = startIndex * rowH;
+      const bottomHeight = (total - endIndex) * rowH;
+
+      const parts = [];
+      parts.push(`<tr class="va-spacer" style="height:${topHeight}px"><td colspan="8"></td></tr>`);
+
+      for (let i = startIndex; i < endIndex; i++) {
+        parts.push(rowHtml(currentResults[i], i));
+      }
+
+      parts.push(`<tr class="va-spacer" style="height:${bottomHeight}px"><td colspan="8"></td></tr>`);
+
+      tbody.innerHTML = parts.join('');
+
+      // قياس ارتفاع الصف الحقيقي مرة واحدة لضبط الـ virtual scrolling بدقة
+      if (!rowHeightMeasured) {
+        const firstDataRow = tbody.querySelector('tr:not(.va-spacer)');
+        if (firstDataRow) {
+          const measuredHeight = firstDataRow.getBoundingClientRect().height;
+          if (measuredHeight > 0) {
+            ROW_HEIGHT = measuredHeight;
+            rowHeightMeasured = true;
+            renderVirtual();
+            return;
+          }
+        }
+      }
+
+      document.getElementById('countInfo').textContent =
+        `عدد النتائج: ${total} من إجمالي ${allData.length}`;
+
+      renderSummary(currentResults);
+      updateArrows();
+    }
+
+    function defaultSort(a, b) {
+      if (b._dateNum !== a._dateNum) return b._dateNum - a._dateNum;
+      return collator.compare(String(b.invoiceNo || ''), String(a.invoiceNo || ''));
+    }
+
+    function compareByKey(a, b, key) {
+      if (key === 'date') {
+        return (a._dateNum - b._dateNum) * sortDir;
+      }
+
+      if (key === 'qty') {
+        const valueA = Number.isNaN(a._qtyNum) ? -Infinity : a._qtyNum;
+        const valueB = Number.isNaN(b._qtyNum) ? -Infinity : b._qtyNum;
+        return (valueA - valueB) * sortDir;
+      }
+
+      if (key === 'uprice') {
+        const valueA = Number.isNaN(a._priceNum) ? -Infinity : a._priceNum;
+        const valueB = Number.isNaN(b._priceNum) ? -Infinity : b._priceNum;
+        return (valueA - valueB) * sortDir;
+      }
+
+      return collator.compare(String(a[key] ?? ''), String(b[key] ?? '')) * sortDir;
+    }
+
+    function applySort(rows) {
+      const sorted = rows.slice();
+
+      if (sortKey) {
+        sorted.sort((a, b) => compareByKey(a, b, sortKey));
+      } else {
+        sorted.sort(defaultSort);
+      }
+
+      return sorted;
+    }
+
+    function search() {
+      const rawItem = document.getElementById('searchItem').value.trim();
+      const rawInvoice = document.getElementById('searchInvoice').value.trim();
+      const rawSupplier = document.getElementById('searchSupplier').value.trim();
+
+      const dateFrom = isoToComparable(document.getElementById('dateFrom').value);
+      const dateTo = isoToComparable(document.getElementById('dateTo').value);
+      const currency = document.getElementById('currencyFilter').value;
+
+      const itemWords = normalizeForSearch(rawItem).split(/\s+/).filter(Boolean);
+      const invoiceWords = normalizeForSearch(rawInvoice).split(/\s+/).filter(Boolean);
+      const supplierWords = normalizeForSearch(rawSupplier).split(/\s+/).filter(Boolean);
+
+      const tFilter0 = performance.now();
+      currentResults = allData.filter(row => {
+        const matchItem = itemWords.length === 0 || itemWords.every(word => row._itemNorm.includes(word));
+        const matchInvoice = invoiceWords.length === 0 || invoiceWords.every(word => row._invoiceNorm.includes(word));
+        const matchSupplier = supplierWords.length === 0 || supplierWords.every(word => row._supplierNorm.includes(word));
+        const matchCurrency = !currency || (row.currency || '').trim() === currency;
+        const matchDateFrom = dateFrom === null || row._dateNum >= dateFrom;
+        const matchDateTo = dateTo === null || row._dateNum <= dateTo;
+
+        return matchItem && matchInvoice && matchSupplier && matchCurrency && matchDateFrom && matchDateTo;
+      });
+      perfStats.search = performance.now() - tFilter0;
+
+      const tSort0 = performance.now();
+      currentResults = applySort(currentResults);
+      perfStats.sort = performance.now() - tSort0;
+
+      closeDetailPanel();
+
+      const scroller = document.getElementById('tableScroll');
+      if (scroller) scroller.scrollTop = 0;
+
+      const tRender0 = performance.now();
+      renderVirtual();
+      perfStats.render = performance.now() - tRender0;
+
+      // أي تغيير في البحث/الفلاتر يُبطل التحليل المعروض سابقاً فوراً؛
+      // لا يُعاد حسابه تلقائياً — يجب أن يضغط المستخدم الزر من جديد.
+      hideProductIntelligence();
+      updateIntelTriggerButton();
+
+      saveFiltersState();
+      updateURLFromFilters();
+      perfLog();
+    }
+
+    const debouncedSearch = debounce(search, 250);
+
+    function exportExcel() {
+      if (!currentResults.length) {
+        alert('لا توجد نتائج للتصدير');
+        return;
+      }
+
+      // التصدير يعمل دائماً على كل currentResults، وليس فقط الصفوف
+      // الظاهرة حالياً على الشاشة بفضل الـ virtual scrolling.
+      const rows = currentResults.map(row => ({
+        'الفاتورة': row.invoiceNo || '',
+        'التاريخ': row.date || '',
+        'العدد': row.qty || '',
+        'العملة': row.currency || '',
+        'السعر': row.uprice || '',
+        'الصنف': row.item || '',
+        'المورد': row.supplier || ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Results');
+      XLSX.writeFile(workbook, 'purchase-results.xlsx');
+    }
+
+    document.getElementById('searchItem').addEventListener('input', debouncedSearch);
+    document.getElementById('searchInvoice').addEventListener('input', debouncedSearch);
+    document.getElementById('searchSupplier').addEventListener('input', debouncedSearch);
+    document.getElementById('dateFrom').addEventListener('change', search);
+    document.getElementById('dateTo').addEventListener('change', search);
+    document.getElementById('currencyFilter').addEventListener('change', search);
+
+    document.getElementById('toggleFiltersBtn').addEventListener('click', () => {
+      const wrapper = document.getElementById('extraFiltersWrap');
+      setExtraFiltersOpen(wrapper.hidden);
+      saveFiltersState();
+    });
+
+    document.getElementById('clearSearch').addEventListener('click', () => {
+      document.getElementById('searchItem').value = '';
+      document.getElementById('searchInvoice').value = '';
+      document.getElementById('searchSupplier').value = '';
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value = '';
+      document.getElementById('currencyFilter').value = '';
+
+      sortKey = null;
+      sortDir = 1;
+
+      search();
+      document.getElementById('searchItem').focus();
+    });
+
+    document.getElementById('exportExcel').addEventListener('click', exportExcel);
+    document.getElementById('refreshBtn').addEventListener('click', () => loadData({ forceFresh: true }));
+    document.getElementById('intelTriggerBtn').addEventListener('click', computeAndShowProductIntelligence);
+    document.getElementById('intelCloseBtn').addEventListener('click', hideProductIntelligence);
+    document.getElementById('closeDetailBtn').addEventListener('click', () => {
+      closeDetailPanel();
+      renderVirtual();
+    });
+
+    // Event delegation: مستمع واحد فقط على tbody بدلاً من زر لكل صف
+    document.getElementById('resultsBody').addEventListener('click', event => {
+      const detailBtn = event.target.closest('.toggle-detail-btn');
+      if (detailBtn) {
+        openDetailPanel(detailBtn.getAttribute('data-inv'), detailBtn.getAttribute('data-year'));
+        return;
+      }
+
+      const copyBtn = event.target.closest('.copy-row-btn');
+      if (copyBtn) {
+        const idx = parseInt(copyBtn.getAttribute('data-row-idx'), 10);
+        const row = currentResults[idx];
+        if (row) copyRowToClipboard(row);
+      }
+    });
+
+    document.querySelectorAll('th[data-key]').forEach(th => {
+      const activateSort = () => {
+        const key = th.getAttribute('data-key');
+
+        if (sortKey === key) {
+          sortDir *= -1;
+        } else {
+          sortKey = key;
+          sortDir = 1;
+        }
+
+        const tSort0 = performance.now();
+        currentResults = applySort(currentResults);
+        perfStats.sort = performance.now() - tSort0;
+
+        closeDetailPanel();
+
+        const scroller = document.getElementById('tableScroll');
+        if (scroller) scroller.scrollTop = 0;
+
+        const tRender0 = performance.now();
+        renderVirtual();
+        perfStats.render = performance.now() - tRender0;
+
+        perfLog();
+      };
+
+      th.addEventListener('click', activateSort);
+      th.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activateSort();
+        }
+      });
+    });
+
+    // إعادة الرسم عند التمرير (مع تحديد بـ requestAnimationFrame لتفادي إرهاق المتصفح)
+    const tableScrollEl = document.getElementById('tableScroll');
+    let scrollScheduled = false;
+
+    tableScrollEl.addEventListener('scroll', () => {
+      if (!scrollScheduled) {
+        scrollScheduled = true;
+        requestAnimationFrame(() => {
+          renderVirtual();
+          scrollScheduled = false;
+        });
+      }
+    });
+
+    window.addEventListener('resize', debounce(() => {
+      rowHeightMeasured = false;
+      renderVirtual();
+    }, 150));
+
+    loadData();
+  </script>
+</body>
+</html>

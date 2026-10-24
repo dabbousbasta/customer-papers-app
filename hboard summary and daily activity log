@@ -1,0 +1,456 @@
+[1mdiff --git a/src/App.jsx b/src/App.jsx[m
+[1mindex 7f2717d..93b33f9 100644[m
+[1m--- a/src/App.jsx[m
+[1m+++ b/src/App.jsx[m
+[36m@@ -33,7 +33,8 @@[m [mimport {[m
+   reopenPaper,[m
+   restorePaper,[m
+   updatePaperAmount,[m
+[31m-  updatePaperImagePath[m
+[32m+[m[32m  updatePaperImagePath,[m
+[32m+[m[32m  updatePaperAmountAndDate,[m
+ } from './lib/papers'[m
+ import {[m
+   createPaperImageUrl,[m
+[36m@@ -1345,6 +1346,10 @@[m [mfunction ActivitiesPage({ session, signOut }) {[m
+   )[m
+ }[m
+ [m
+[32m+[m[32mfunction isPaperImagePdf(path) {[m
+[32m+[m[32m  return Boolean(path) && path.toLowerCase().endsWith('.pdf')[m
+[32m+[m[32m}[m
+[32m+[m
+ function CustomerPage({[m
+   session,[m
+   signOut[m
+[36m@@ -2641,7 +2646,7 @@[m [museEffect(() => {[m
+         ref={cameraInputRef}[m
+         className="hidden-file-input"[m
+         type="file"[m
+[31m-        accept="image/*"[m
+[32m+[m[32m        accept="image/*,application/pdf"[m
+         capture="environment"[m
+         onChange={(event) => {[m
+           setPaperFile(event.target.files?.[0] || null)[m
+[36m@@ -3022,7 +3027,17 @@[m [museEffect(() => {[m
+                   </label>[m
+                 )}[m
+ [m
+[31m-                {thumbnailUrls[paper.id] ? ([m
+[32m+[m[32m                                {thumbnailUrls[paper.id] &&[m
+[32m+[m[32m                isPaperImagePdf(paper.image_path) ? ([m
+[32m+[m[32m                    <a[m
+[32m+[m		[32mclassName="paper-thumbnail pdf-thumbnail-badge"[m
+[32m+[m[32m                    href={thumbnailUrls[paper.id]}[m
+[32m+[m[32m                    target="_blank"[m
+[32m+[m[32m                    rel="noopener noreferrer"[m
+[32m+[m[32m                  >[m
+[32m+[m[32m                    📄 PDF[m
+[32m+[m[32m                  </a>[m
+[32m+[m[32m                ) : thumbnailUrls[paper.id] ? ([m
+                   <img[m
+                     className="paper-thumbnail"[m
+                     src={thumbnailUrls[paper.id]}[m
+[36m@@ -3296,7 +3311,7 @@[m [mfunction QuickPaperActionModal({[m
+               الصورة الجديدة[m
+               <input[m
+                 type="file"[m
+[31m-                accept="image/*"[m
+[32m+[m[32m                accept="image/*,application/pdf"[m
+                 capture="environment"[m
+                 onChange={(event) =>[m
+                   setImageFile([m
+[36m@@ -3895,7 +3910,17 @@[m [mfunction CustomerReport({ customer }) {[m
+                 className="report-paper-row report-paper-with-image"[m
+                 key={paper.id}[m
+               >[m
+[31m-                {thumbnailUrls[paper.id] ? ([m
+[32m+[m[32m{thumbnailUrls[paper.id] &&[m
+[32m+[m[32m  isPaperImagePdf(paper.image_path) ? ([m
+[32m+[m[32m    <a[m
+[32m+[m[32m      className="paper-thumbnail pdf-thumbnail-badge"[m
+[32m+[m[32m      href={thumbnailUrls[paper.id]}[m
+[32m+[m[32m      target="_blank"[m
+[32m+[m[32m      rel="noopener noreferrer"[m
+[32m+[m[32m    >[m
+[32m+[m[32m      📄 PDF[m
+[32m+[m[32m    </a>[m
+[32m+[m[32m                ) : thumbnailUrls[paper.id] ? ([m
+                   <img[m
+                     className="report-paper-thumbnail"[m
+                     src={thumbnailUrls[paper.id]}[m
+[36m@@ -3972,13 +3997,23 @@[m [mfunction PaperModal({[m
+   const [message, setMessage] = useState('')[m
+   const [saving, setSaving] = useState(false)[m
+ [m
+[31m-  async function saveAmount(event) {[m
+[32m+[m[32m  const cameraInputRef = useRef(null)[m
+[32m+[m[32m  const fileInputRef = useRef(null)[m
+[32m+[m
+[32m+[m[32m  const [paperDate, setPaperDate] = useState([m
+[32m+[m[32m    paper.paper_date[m
+[32m+[m[32m  )[m
+[32m+[m
+[32m+[m[32m    async function saveAmount(event) {[m
+     event.preventDefault()[m
+     setSaving(true)[m
+ [m
+     try {[m
+[31m-      await updatePaperAmount(paper.id, amount)[m
+[31m-      setMessage('تم حفظ قيمة الورقة')[m
+[32m+[m[32m      await updatePaperAmountAndDate(paper.id, {[m
+[32m+[m[32m        totalAmount: amount,[m
+[32m+[m[32m        paperDate[m
+[32m+[m[32m      })[m
+[32m+[m[32m      setMessage('تم حفظ قيمة الورقة وتاريخها')[m
+       setShowAmountForm(false)[m
+       await onSaved()[m
+     } catch (error) {[m
+[36m@@ -4146,12 +4181,23 @@[m [mfunction PaperModal({[m
+ [m
+         <h2>تفاصيل الورقة</h2>[m
+ [m
+[31m-        {imageUrl && ([m
+[31m-          <img[m
+[31m-            className="paper-image"[m
+[31m-            src={imageUrl}[m
+[31m-            alt="صورة الورقة"[m
+[31m-          />[m
+[32m+[m[32m                {imageUrl && ([m
+[32m+[m[32m          isPaperImagePdf(paper.image_path) ? ([m
+[32m+[m[32m            <a[m
+[32m+[m[32m              className="paper-pdf-link"[m
+[32m+[m[32m              href={imageUrl}[m
+[32m+[m[32m              target="_blank"[m
+[32m+[m[32m              rel="noopener noreferrer"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              📄 فتح ملف PDF للورقة[m
+[32m+[m[32m            </a>[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            <img[m
+[32m+[m[32m              className="paper-image"[m
+[32m+[m[32m              src={imageUrl}[m
+[32m+[m[32m              alt="صورة الورقة"[m
+[32m+[m[32m            />[m
+[32m+[m[32m          )[m
+         )}[m
+ [m
+         <p>التاريخ: {paper.paper_date}</p>[m
+[36m@@ -4198,7 +4244,7 @@[m [mfunction PaperModal({[m
+                 : 'تعديل قيمة الورقة'}[m
+             </button>[m
+ [m
+[31m-            {showAmountForm && ([m
+[32m+[m[32m                        {showAmountForm && ([m
+               <form[m
+                 className="amount-form"[m
+                 onSubmit={saveAmount}[m
+[36m@@ -4216,8 +4262,20 @@[m [mfunction PaperModal({[m
+                   />[m
+                 </label>[m
+ [m
+[32m+[m[32m                <label>[m
+[32m+[m[32m                  تاريخ الورقة[m
+[32m+[m[32m                  <input[m
+[32m+[m[32m                    type="date"[m
+[32m+[m[32m                    value={paperDate}[m
+[32m+[m[32m                    onChange={(event) =>[m
+[32m+[m[32m                      setPaperDate(event.target.value)[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                    required[m
+[32m+[m[32m                  />[m
+[32m+[m[32m                </label>[m
+[32m+[m
+                 <button type="submit" disabled={saving}>[m
+[31m-                  حفظ القيمة[m
+[32m+[m[32m                  حفظ القيمة والتاريخ[m
+                 </button>[m
+               </form>[m
+             )}[m
+[36m@@ -4362,65 +4420,73 @@[m [mfunction PaperModal({[m
+                 : 'استبدال الصورة'}[m
+             </button>[m
+ [m
+[31m-            {showImageForm && ([m
+[32m+[m[32m                        {showImageForm && ([m
+               <form[m
+                 className="image-form"[m
+                 onSubmit={replaceImage}[m
+               >[m
+[31m-               <div className="paper-image-picker">[m
+[31m-  <span className="paper-image-picker-label">[m
+[31m-    صورة الورقة[m
+[31m-  </span>[m
+[32m+[m[32m                <div className="paper-image-picker">[m
+[32m+[m[32m                  <span className="paper-image-picker-label">[m
+[32m+[m[32m                    صورة أو ملف PDF جديد للورقة[m
+[32m+[m[32m                  </span>[m
+ [m
+[31m-  <div className="paper-image-picker-actions">[m
+[31m-    <button[m
+[31m-      type="button"[m
+[31m-      className="camera-picker-button"[m
+[31m-      onClick={() => cameraInputRef.current?.click()}[m
+[31m-      aria-label="تصوير الورقة بالكاميرا"[m
+[31m-      title="تصوير بالكاميرا"[m
+[31m-    >[m
+[31m-      📷[m
+[31m-    </button>[m
+[32m+[m[32m                  <div className="paper-image-picker-actions">[m
+[32m+[m[32m                    <button[m
+[32m+[m[32m                      type="button"[m
+[32m+[m[32m                      className="camera-picker-button"[m
+[32m+[m[32m                      onClick={() =>[m
+[32m+[m[32m                        cameraInputRef.current?.click()[m
+[32m+[m[32m                      }[m
+[32m+[m[32m                      aria-label="تصوير الورقة بالكاميرا"[m
+[32m+[m[32m                      title="تصوير بالكاميرا"[m
+[32m+[m[32m                    >[m
+[32m+[m[32m                      📷[m
+[32m+[m[32m                    </button>[m
+[32m+[m
+[32m+[m[32m                    <button[m
+[32m+[m[32m                      type="button"[m
+[32m+[m[32m                      className="file-picker-button"[m
+[32m+[m[32m                      onClick={() =>[m
+[32m+[m[32m                        fileInputRef.current?.click()[m
+[32m+[m[32m                      }[m
+[32m+[m[32m                      aria-label="اختيار صورة أو PDF من الهاتف"[m
+[32m+[m[32m                      title="اختيار صورة أو PDF"[m
+[32m+[m[32m                    >[m
+[32m+[m[32m                      🖼[m
+[32m+[m[32m                    </button>[m
+[32m+[m[32m                  </div>[m
+ [m
+[31m-    <button[m
+[31m-      type="button"[m
+[31m-      className="file-picker-button"[m
+[31m-      onClick={() => fileInputRef.current?.click()}[m
+[31m-      aria-label="اختيار صورة أو ملف من الهاتف"[m
+[31m-      title="اختيار صورة أو ملف"[m
+[31m-    >[m
+[31m-      🖼[m
+[31m-    </button>[m
+[31m-  </div>[m
+[32m+[m[32m                  <input[m
+[32m+[m[32m                    ref={cameraInputRef}[m
+[32m+[m[32m                    className="hidden-file-input"[m
+[32m+[m[32m                    type="file"[m
+[32m+[m[32m                    accept="image/*"[m
+[32m+[m[32m                    capture="environment"[m
+[32m+[m[32m                    onChange={(event) =>[m
+[32m+[m[32m                      setNewImageFile([m
+[32m+[m[32m                        event.target.files?.[0] || null[m
+[32m+[m[32m                      )[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                  />[m
+ [m
+[31m-  <input[m
+[31m-    ref={cameraInputRef}[m
+[31m-    className="hidden-file-input"[m
+[31m-    type="file"[m
+[31m-    accept="image/*"[m
+[31m-    capture="environment"[m
+[31m-    onChange={(event) =>[m
+[31m-      setPaperFile(event.target.files?.[0] || null)[m
+[31m-    }[m
+[31m-  />[m
+[31m-[m
+[31m-  <input[m
+[31m-    ref={fileInputRef}[m
+[31m-    className="hidden-file-input"[m
+[31m-    type="file"[m
+[31m-    accept="image/*"[m
+[31m-    onChange={(event) =>[m
+[31m-      setPaperFile(event.target.files?.[0] || null)[m
+[31m-    }[m
+[31m-  />[m
+[32m+[m[32m                  <input[m
+[32m+[m[32m                    ref={fileInputRef}[m
+[32m+[m[32m                    className="hidden-file-input"[m
+[32m+[m[32m                    type="file"[m
+[32m+[m[32m                    accept="image/*,application/pdf"[m
+[32m+[m[32m                    onChange={(event) =>[m
+[32m+[m[32m                      setNewImageFile([m
+[32m+[m[32m                        event.target.files?.[0] || null[m
+[32m+[m[32m                      )[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                  />[m
+ [m
+[31m-  <p className="selected-image-name">[m
+[31m-    {paperFile[m
+[31m-      ? `الصورة المختارة: ${paperFile.name}`[m
+[31m-      : 'اختر طريقة إضافة الصورة.'}[m
+[31m-  </p>[m
+[31m-</div>[m
+[32m+[m[32m                  <p className="selected-image-name">[m
+[32m+[m[32m                    {newImageFile[m
+[32m+[m[32m                      ? `الملف المختار: ${newImageFile.name}`[m
+[32m+[m[32m                      : 'اختر طريقة إضافة الصورة أو الـPDF.'}[m
+[32m+[m[32m                  </p>[m
+[32m+[m[32m                </div>[m
+ [m
+                 <label>[m
+                   وصف الصورة[m
+[36m@@ -4438,7 +4504,7 @@[m [mfunction PaperModal({[m
+ [m
+                 <button type="submit" disabled={saving}>[m
+                   {saving[m
+[31m-                    ? 'جارٍ رفع الصورة...'[m
+[32m+[m[32m                    ? 'جارٍ رفع الملف...'[m
+                     : 'حفظ الصورة الجديدة'}[m
+                 </button>[m
+               </form>[m
+[36m@@ -4446,6 +4512,7 @@[m [mfunction PaperModal({[m
+           </>[m
+         )}[m
+ [m
+[32m+[m
+         <h3>سجل الصور</h3>[m
+ [m
+         {imageHistory.length === 0 ? ([m
+[36m@@ -4475,7 +4542,9 @@[m [mfunction PaperModal({[m
+                     openHistoryImage(image.image_path)[m
+                   }[m
+                 >[m
+[31m-                  فتح الصورة[m
+[32m+[m[32m                  {isPaperImagePdf(image.image_path)[m
+[32m+[m[32m                    ? 'فتح PDF'[m
+[32m+[m[32m                    : 'فتح الصورة'}[m
+                 </button>[m
+               </li>[m
+             ))}[m
+[1mdiff --git a/src/index.css b/src/index.css[m
+[1mindex 042a1d7..6c2a8e8 100644[m
+[1m--- a/src/index.css[m
+[1m+++ b/src/index.css[m
+[36m@@ -3021,4 +3021,28 @@[m [mmain {[m
+   color: #0f3d68;[m
+   font-size: 0.82rem;[m
+   font-weight: 800;[m
+[32m+[m[32m}[m
+[32m+[m[32m.paper-pdf-link {[m
+[32m+[m[32m  display: inline-flex;[m
+[32m+[m[32m  align-items: center;[m
+[32m+[m[32m  gap: 6px;[m
+[32m+[m[32m  padding: 10px 14px;[m
+[32m+[m[32m  border-radius: 10px;[m
+[32m+[m[32m  background: #eff6ff;[m
+[32m+[m[32m  border: 1px solid #93c5fd;[m
+[32m+[m[32m  color: #1d4ed8;[m
+[32m+[m[32m  font-weight: 700;[m
+[32m+[m[32m  text-decoration: none;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m.pdf-thumbnail-badge {[m
+[32m+[m[32m  display: flex;[m
+[32m+[m[32m  align-items: center;[m
+[32m+[m[32m  justify-content: center;[m
+[32m+[m[32m  background: #eff6ff;[m
+[32m+[m[32m  border: 1px solid #93c5fd;[m
+[32m+[m[32m  color: #1d4ed8;[m
+[32m+[m[32m  font-weight: 800;[m
+[32m+[m[32m  font-size: 0.78rem;[m
+[32m+[m[32m  text-decoration: none;[m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/src/lib/papers.js b/src/lib/papers.js[m
+[1mindex de6f232..6af537f 100644[m
+[1m--- a/src/lib/papers.js[m
+[1m+++ b/src/lib/papers.js[m
+[36m@@ -227,6 +227,77 @@[m [mexport async function updatePaperAmount([m
+   return data[m
+ }[m
+ [m
+[32m+[m[32mexport async function updatePaperAmountAndDate([m
+[32m+[m[32m  paperId,[m
+[32m+[m[32m  {[m
+[32m+[m[32m    totalAmount,[m
+[32m+[m[32m    paperDate[m
+[32m+[m[32m  }[m
+[32m+[m[32m) {[m
+[32m+[m[32m  const user = await getCurrentUser()[m
+[32m+[m
+[32m+[m[32m  const oldPaper = await getPaperActivityInfo(paperId)[m
+[32m+[m
+[32m+[m[32m  const numericAmount =[m
+[32m+[m[32m    totalAmount === '' ||[m
+[32m+[m[32m    totalAmount === null ||[m
+[32m+[m[32m    totalAmount === undefined[m
+[32m+[m[32m      ? null[m
+[32m+[m[32m      : Number(totalAmount)[m
+[32m+[m
+[32m+[m[32m  if ([m
+[32m+[m[32m    numericAmount !== null &&[m
+[32m+[m[32m    Number.isNaN(numericAmount)[m
+[32m+[m[32m  ) {[m
+[32m+[m[32m    throw new Error('أدخل قيمة صحيحة للورقة')[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  const { data, error } = await supabase[m
+[32m+[m[32m    .from('papers')[m
+[32m+[m[32m    .update({[m
+[32m+[m[32m      total_amount: numericAmount,[m
+[32m+[m[32m      paper_date: paperDate,[m
+[32m+[m[32m      updated_by: user.id[m
+[32m+[m[32m    })[m
+[32m+[m[32m    .eq('id', paperId)[m
+[32m+[m[32m    .select()[m
+[32m+[m[32m    .single()[m
+[32m+[m
+[32m+[m[32m  if (error) {[m
+[32m+[m[32m    throw error[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const customerName = getCustomerName(oldPaper)[m
+[32m+[m
+[32m+[m[32m    await logActivity({[m
+[32m+[m[32m      actionType: 'paper_amount_updated',[m
+[32m+[m[32m      entityType: 'paper',[m
+[32m+[m[32m      entityId: data.id,[m
+[32m+[m[32m      customerId: data.customer_id,[m
+[32m+[m[32m      paperId: data.id,[m
+[32m+[m[32m      summary:[m
+[32m+[m[32m        `تعديل ورقة الزبون: ${customerName} ` +[m
+[32m+[m[32m        `القيمة من ${formatAmount(oldPaper.total_amount)} ` +[m
+[32m+[m[32m        `إلى ${formatAmount(data.total_amount)}، ` +[m
+[32m+[m[32m        `التاريخ ${data.paper_date}`,[m
+[32m+[m[32m      details: {[m
+[32m+[m[32m        old_total_amount: oldPaper.total_amount,[m
+[32m+[m[32m        new_total_amount: data.total_amount,[m
+[32m+[m[32m        old_paper_date: oldPaper.paper_date,[m
+[32m+[m[32m        new_paper_date: data.paper_date[m
+[32m+[m[32m      }[m
+[32m+[m[32m    })[m
+[32m+[m[32m  } catch (activityError) {[m
+[32m+[m[32m    console.error([m
+[32m+[m[32m      'تعذر تسجيل تعديل الورقة',[m
+[32m+[m[32m      activityError[m
+[32m+[m[32m    )[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  return data[m
+[32m+[m[32m}[m
+[32m+[m
+ export async function updatePaperImagePath([m
+   paperId,[m
+   imagePath[m
+[1mdiff --git a/src/lib/storage.js b/src/lib/storage.js[m
+[1mindex 66e5b76..4b009d6 100644[m
+[1m--- a/src/lib/storage.js[m
+[1m+++ b/src/lib/storage.js[m
+[36m@@ -7,8 +7,11 @@[m [mexport async function uploadPaperImage(file, paperId) {[m
+     throw new Error('اختر صورة الورقة')[m
+   }[m
+ [m
+[31m-  if (!file.type.startsWith('image/')) {[m
+[31m-    throw new Error('الملف المختار ليس صورة')[m
+[32m+[m[32m    const isImage = file.type.startsWith('image/')[m
+[32m+[m[32m  const isPdf = file.type === 'application/pdf'[m
+[32m+[m
+[32m+[m[32m  if (!isImage && !isPdf) {[m
+[32m+[m[32m    throw new Error('الملف يجب أن يكون صورة أو PDF')[m
+   }[m
+ [m
+   if (file.size > 6 * 1024 * 1024) {[m

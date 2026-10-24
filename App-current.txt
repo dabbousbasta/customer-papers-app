@@ -1,0 +1,3588 @@
+﻿import { useEffect, useState } from 'react'
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams
+} from 'react-router-dom'
+import { supabase } from './lib/supabase'
+import {
+  createAndDownloadBackup
+} from './lib/backup'
+import {
+  archiveCustomer,
+  createCustomer,
+  getCustomers,
+  restoreCustomer,
+  updateCustomer
+} from './lib/customers'
+import {
+  archivePaper,
+  calculateBalance,
+  closePaper,
+  createPaper,
+  getPapers,
+  movePapersToCustomer,
+  reopenPaper,
+  restorePaper,
+  updatePaperAmount,
+  updatePaperImagePath
+} from './lib/papers'
+import {
+  createPaperImageUrl,
+  getPaperImageHistory,
+  savePaperImageHistory,
+  uploadPaperImage
+} from './lib/storage'
+import { createPayment } from './lib/payments'
+import {
+  buildCustomerWhatsAppReport,
+  openWhatsAppMessage
+} from './lib/whatsapp'
+
+const RECENT_CUSTOMERS_KEY =
+  'customer-papers-recent-customers'
+
+function App() {
+  const [session, setSession] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadSession() {
+      const { data } =
+        await supabase.auth.getSession()
+
+      if (!active) return
+
+      setSession(data.session)
+      setLoading(false)
+    }
+
+    loadSession()
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession)
+        setLoading(false)
+      }
+    )
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    setSession(null)
+  }
+
+  if (loading) {
+    return (
+      <main dir="rtl" className="page-center">
+        <p>ط¬ط§ط±ظچ ط§ظ„طھط­ظ…ظٹظ„...</p>
+      </main>
+    )
+  }
+
+  if (!session) {
+    return <LoginPage />
+  }
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <CustomerSelectPage
+            session={session}
+            signOut={signOut}
+          />
+        }
+      />
+
+      <Route
+        path="/customer/:customerId/*"
+        element={
+          <CustomerPage
+            session={session}
+            signOut={signOut}
+          />
+        }
+      />
+
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
+    </Routes>
+  )
+}
+
+function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] =
+    useState(false)
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function login(event) {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+
+    const { error } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password
+      })
+
+    if (error) {
+      setMessage(`ظپط´ظ„ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„: ${error.message}`)
+    }
+
+    setSaving(false)
+  }
+
+  return (
+    <main dir="rtl" className="auth-page">
+      <section className="auth-card">
+        <h1>ط¯ط¨ظˆط³ ط§ظ„ط¨ط³ط·ط©</h1>
+        <p>ظ†ط¸ط§ظ… ط£ظˆط±ط§ظ‚ ط§ظ„ط²ط¨ط§ط¦ظ†</p>
+
+        <form onSubmit={login}>
+          <label>
+            ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ
+            <input
+              type="email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
+              autoComplete="email"
+              required
+            />
+          </label>
+
+          <label>
+            ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±
+
+            <div className="password-input-wrap">
+              <input
+                type={
+                  showPassword ? 'text' : 'password'
+                }
+                value={password}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                autoComplete="current-password"
+                required
+              />
+
+              <button
+                type="button"
+                className="password-toggle-button"
+                onClick={() =>
+                  setShowPassword(!showPassword)
+                }
+                aria-label={
+                  showPassword
+                    ? 'ط¥ط®ظپط§ط، ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±'
+                    : 'ط¥ط¸ظ‡ط§ط± ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±'
+                }
+                title={
+                  showPassword
+                    ? 'ط¥ط®ظپط§ط، ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±'
+                    : 'ط¥ط¸ظ‡ط§ط± ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±'
+                }
+              >
+                {showPassword ? 'â—‰' : 'â—Œ'}
+              </button>
+            </div>
+          </label>
+
+          <button type="submit" disabled={saving}>
+            {saving
+              ? 'ط¬ط§ط±ظچ ط§ظ„ط¯ط®ظˆظ„...'
+              : 'طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„'}
+          </button>
+        </form>
+
+        {message && (
+          <p className="message error">{message}</p>
+        )}
+      </section>
+    </main>
+  )
+}
+
+function Header({
+  session,
+  signOut,
+  title
+}) {
+  const [backupStatus, setBackupStatus] = useState('')
+  const [creatingBackup, setCreatingBackup] =
+    useState(false)
+  const [showBackupOptions, setShowBackupOptions] =
+    useState(false)
+
+  async function handleBackup(includeImages) {
+    const confirmationMessage = includeImages
+      ? 'ط³ظٹطھظ… طھظ†ط²ظٹظ„ ظ†ط³ط®ط© ظƒط§ظ…ظ„ط© طھط´ظ…ظ„ ظƒظ„ ط§ظ„ط²ط¨ط§ط¦ظ† ظˆط§ظ„ط£ظˆط±ط§ظ‚ ' +
+        'ظˆط§ظ„ط¯ظپط¹ط§طھ ظˆط§ظ„طµظˆط± ط§ظ„ط­ط§ظ„ظٹط© ظˆطµظˆط± ط§ظ„ط³ط¬ظ„. ظ‚ط¯ ظٹط³طھط؛ط±ظ‚ ' +
+        'ط°ظ„ظƒ ظˆظ‚طھظ‹ط§ ط¥ط°ط§ ظƒط§ظ† ط¹ط¯ط¯ ط§ظ„طµظˆط± ظƒط¨ظٹط±ظ‹ط§.\n\n' +
+        'ظ‡ظ„ طھط±ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©طں'
+      : 'ط³ظٹطھظ… طھظ†ط²ظٹظ„ ظ†ط³ط®ط© ط³ط±ظٹط¹ط© طھط´ظ…ظ„ ظƒظ„ ط§ظ„ط²ط¨ط§ط¦ظ† ظˆط§ظ„ط£ظˆط±ط§ظ‚ ' +
+        'ظˆط§ظ„ط¯ظپط¹ط§طھطŒ ظˆظ„ظƒظ† ظ…ظ† ط¯ظˆظ† ط§ظ„طµظˆط±. ظ‡ط°ظ‡ ط§ظ„ظ†ط³ط®ط© ظ…ظ†ط§ط³ط¨ط© ' +
+        'ظ„ظ„ط­ظپط¸ ط§ظ„ظٹظˆظ…ظٹ.\n\nظ‡ظ„ طھط±ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©طں'
+
+    const confirmed = window.confirm(
+      confirmationMessage
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setShowBackupOptions(false)
+    setCreatingBackup(true)
+
+    setBackupStatus(
+      includeImages
+        ? 'ط¬ط§ط±ظچ طھط¬ظ‡ظٹط² ط§ظ„ظ†ط³ط®ط© ط§ظ„ظƒط§ظ…ظ„ط© ظ…ط¹ ط§ظ„طµظˆط±...'
+        : 'ط¬ط§ط±ظچ طھط¬ظ‡ظٹط² ط§ظ„ظ†ط³ط®ط© ط§ظ„ط³ط±ظٹط¹ط© ط¨ط¯ظˆظ† ط§ظ„طµظˆط±...'
+    )
+
+    try {
+      const result = await createAndDownloadBackup({
+        includeImages,
+        onProgress: ({ message }) => {
+          setBackupStatus(message)
+        }
+      })
+
+      const failedCount = result.failedImages.length
+      const imagePart = includeImages
+        ? `طŒ ${result.imagesCount} طµظˆط±ط©`
+        : ''
+
+      const failedPart = failedCount
+        ? `طŒ ظˆطھط¹ط°ط± طھظ†ط²ظٹظ„ ${failedCount} طµظˆط±ط©`
+        : ''
+
+      setBackupStatus(
+        `طھظ… طھظ†ط²ظٹظ„ ط§ظ„ظ†ط³ط®ط© ` +
+        `${includeImages ? 'ط§ظ„ظƒط§ظ…ظ„ط© ظ…ط¹ ط§ظ„طµظˆط±' : 'ط§ظ„ط³ط±ظٹط¹ط© ط¨ط¯ظˆظ† ط§ظ„طµظˆط±'} ` +
+        `ط¨ظ†ط¬ط§ط­: ${result.customersCount} ط²ط¨ظˆظ†طŒ ` +
+        `${result.papersCount} ظˆط±ظ‚ط©طŒ ` +
+        `${result.paymentsCount} ط¯ظپط¹ط©` +
+        imagePart +
+        failedPart
+      )
+    } catch (error) {
+      setBackupStatus(
+        `ظپط´ظ„ ط¥ظ†ط´ط§ط، ط§ظ„ظ†ط³ط®ط© ط§ظ„ط§ط­طھظٹط§ط·ظٹط©: ${error.message}`
+      )
+    } finally {
+      setCreatingBackup(false)
+    }
+  }
+
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <Link to="/" className="app-brand-link">
+            ط¯ط¨ظˆط³ ط§ظ„ط¨ط³ط·ط©
+          </Link>
+
+          <h1>{title}</h1>
+          <p>{session.user.email}</p>
+        </div>
+
+        <div className="topbar-actions">
+          <Link
+            to="/"
+            className="topbar-link"
+          >
+            ط§ط®طھظٹط§ط± ط²ط¨ظˆظ† ط¢ط®ط±
+          </Link>
+
+          <div className="backup-actions">
+            <button
+              type="button"
+              onClick={() =>
+                setShowBackupOptions(
+                  !showBackupOptions
+                )
+              }
+              className="backup-button"
+              disabled={creatingBackup}
+            >
+              {creatingBackup
+                ? 'ط¬ط§ط±ظچ ط§ظ„ظ†ط³ط® ط§ظ„ط§ط­طھظٹط§ط·ظٹ...'
+                : 'ظ†ط³ط®ط© ط§ط­طھظٹط§ط·ظٹط©'}
+            </button>
+
+            {showBackupOptions && !creatingBackup && (
+              <div className="backup-options">
+                <button
+                  type="button"
+                  className="backup-quick-option"
+                  onClick={() => handleBackup(false)}
+                >
+                  ظ†ط³ط®ط© ط³ط±ظٹط¹ط© ط¨ط¯ظˆظ† ط§ظ„طµظˆط±
+                </button>
+
+                <button
+                  type="button"
+                  className="backup-full-option"
+                  onClick={() => handleBackup(true)}
+                >
+                  ظ†ط³ط®ط© ظƒط§ظ…ظ„ط© ظ…ط¹ ط§ظ„طµظˆط±
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={signOut}
+            className="secondary-button"
+            disabled={creatingBackup}
+          >
+            طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬
+          </button>
+        </div>
+      </header>
+
+      {backupStatus && (
+        <p
+          className={
+            backupStatus.startsWith('ظپط´ظ„')
+              ? 'message error backup-status'
+              : 'message backup-status'
+          }
+        >
+          {backupStatus}
+        </p>
+      )}
+    </>
+  )
+}
+function CustomerSelectPage({
+  session,
+  signOut
+}) {
+  const navigate = useNavigate()
+  const [customers, setCustomers] = useState([])
+  const [recentCustomers, setRecentCustomers] =
+    useState([])
+  const [search, setSearch] = useState('')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [showArchived, setShowArchived] =
+    useState(false)
+  const [showNewCustomerForm, setShowNewCustomerForm] =
+    useState(false)
+  const [newCustomerName, setNewCustomerName] =
+    useState('')
+  const [newCustomerPhone, setNewCustomerPhone] =
+    useState('')
+  const [newCustomerNotes, setNewCustomerNotes] =
+    useState('')
+  const [savingCustomer, setSavingCustomer] =
+    useState(false)
+
+  useEffect(() => {
+    loadCustomers('', false)
+    loadRecentCustomers()
+  }, [])
+
+  async function loadCustomers(
+    searchText,
+    archivedOnly = showArchived
+  ) {
+    setLoading(true)
+
+    const { data, error } = await getCustomers(
+      searchText,
+      { archivedOnly }
+    )
+
+    if (error) {
+      setMessage(error.message)
+    } else {
+      setCustomers(data || [])
+    }
+
+    setLoading(false)
+  }
+
+  function loadRecentCustomers() {
+    try {
+      const stored = localStorage.getItem(
+        RECENT_CUSTOMERS_KEY
+      )
+
+      if (!stored) {
+        setRecentCustomers([])
+        return
+      }
+
+      const parsed = JSON.parse(stored)
+
+      setRecentCustomers(
+        Array.isArray(parsed) ? parsed : []
+      )
+    } catch {
+      setRecentCustomers([])
+    }
+  }
+
+  function saveRecentCustomer(customer) {
+    const withoutCurrent = recentCustomers.filter(
+      (item) => item.id !== customer.id
+    )
+
+    const updated = [
+      {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone || '',
+        usedAt: new Date().toISOString()
+      },
+      ...withoutCurrent
+    ].slice(0, 8)
+
+    setRecentCustomers(updated)
+
+    localStorage.setItem(
+      RECENT_CUSTOMERS_KEY,
+      JSON.stringify(updated)
+    )
+  }
+
+  function removeRecentCustomer(customerId) {
+    const updated = recentCustomers.filter(
+      (item) => item.id !== customerId
+    )
+
+    setRecentCustomers(updated)
+
+    localStorage.setItem(
+      RECENT_CUSTOMERS_KEY,
+      JSON.stringify(updated)
+    )
+  }
+
+  function openCustomer(customer) {
+    if (customer.is_archived) {
+      setMessage(
+        'ظ‡ط°ط§ ط§ظ„ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ. ط£ظ„ط؛ظگ ط§ظ„ط£ط±ط´ظپط© ط£ظˆظ„ظ‹ط§ ظ„ظپطھط­ظ‡.'
+      )
+      return
+    }
+
+    saveRecentCustomer(customer)
+
+    navigate(`/customer/${customer.id}/papers`)
+  }
+
+  function openQuickPaper(customer) {
+    if (customer.is_archived) {
+      setMessage(
+        'ظ„ط§ ظٹظ…ظƒظ† ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ. ط£ظ„ط؛ظگ ط§ظ„ط£ط±ط´ظپط© ط£ظˆظ„ظ‹ط§.'
+      )
+      return
+    }
+
+    saveRecentCustomer(customer)
+
+    navigate(
+      `/customer/${customer.id}/papers?addPaper=1`
+    )
+  }
+
+  function clearRecentCustomers() {
+    localStorage.removeItem(RECENT_CUSTOMERS_KEY)
+    setRecentCustomers([])
+  }
+
+  function cancelNewCustomer() {
+    setShowNewCustomerForm(false)
+    setNewCustomerName('')
+    setNewCustomerPhone('')
+    setNewCustomerNotes('')
+  }
+
+  async function saveNewCustomer(event) {
+    event.preventDefault()
+
+    if (!newCustomerName.trim()) {
+      setMessage('ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ† ظ…ط·ظ„ظˆط¨')
+      return
+    }
+
+    setSavingCustomer(true)
+    setMessage('')
+
+    try {
+      const customer = await createCustomer({
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        notes: newCustomerNotes
+      })
+
+      saveRecentCustomer(customer)
+      cancelNewCustomer()
+
+      navigate(`/customer/${customer.id}/papers`)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
+
+  async function changeArchivedView() {
+    const nextValue = !showArchived
+
+    setShowArchived(nextValue)
+    setSearch('')
+    setMessage('')
+    cancelNewCustomer()
+
+    await loadCustomers('', nextValue)
+  }
+
+  async function restoreArchivedCustomer(customer) {
+    try {
+      setMessage('ط¬ط§ط±ظچ ط¥ظ„ط؛ط§ط، ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ†...')
+
+      await restoreCustomer(customer.id)
+      removeRecentCustomer(customer.id)
+
+      setMessage(
+        `طھظ… ط¥ظ„ط؛ط§ط، ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ†: ${customer.name}`
+      )
+
+      await loadCustomers(search, true)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  return (
+    <main dir="rtl" className="app-page">
+      <Header
+        session={session}
+        signOut={signOut}
+        title="ط§ط®طھظٹط§ط± ط§ظ„ط²ط¨ظˆظ†"
+      />
+
+      <section className="compact-customer-toolbar">
+        <input
+          type="search"
+          placeholder={
+            showArchived
+              ? 'ط§ط¨ط­ط« ط¹ظ† ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ...'
+              : 'ط§ط¨ط­ط« ط¹ظ† ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ†...'
+          }
+          value={search}
+          onChange={(event) => {
+            const value = event.target.value
+
+            setSearch(value)
+            loadCustomers(value, showArchived)
+          }}
+          aria-label={
+            showArchived
+              ? 'ط§ظ„ط¨ط­ط« ط¹ظ† ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ'
+              : 'ط§ظ„ط¨ط­ط« ط¹ظ† ط²ط¨ظˆظ†'
+          }
+        />
+
+        <button
+          type="button"
+          className="compact-icon-button add-customer-icon-button"
+          onClick={() =>
+            setShowNewCustomerForm(!showNewCustomerForm)
+          }
+          disabled={showArchived}
+          aria-label={
+            showNewCustomerForm
+              ? 'ط¥ظ„ط؛ط§ط، ط¥ط¶ط§ظپط© ط²ط¨ظˆظ† ط¬ط¯ظٹط¯'
+              : 'ط¥ط¶ط§ظپط© ط²ط¨ظˆظ† ط¬ط¯ظٹط¯'
+          }
+          title={
+            showNewCustomerForm
+              ? 'ط¥ظ„ط؛ط§ط، ط¥ط¶ط§ظپط© ط²ط¨ظˆظ† ط¬ط¯ظٹط¯'
+              : 'ط¥ط¶ط§ظپط© ط²ط¨ظˆظ† ط¬ط¯ظٹط¯'
+          }
+        >
+          {showNewCustomerForm ? 'أ—' : '+'}
+        </button>
+
+        <button
+          type="button"
+          className="compact-icon-button archive-icon-button"
+          onClick={changeArchivedView}
+          aria-label={
+            showArchived
+              ? 'ط§ظ„ط¹ظˆط¯ط© ط¥ظ„ظ‰ ط§ظ„ط²ط¨ط§ط¦ظ† ط§ظ„ظ†ط´ط·ظٹظ†'
+              : 'ط¹ط±ط¶ ط£ط±ط´ظٹظپ ط§ظ„ط²ط¨ط§ط¦ظ†'
+          }
+          title={
+            showArchived
+              ? 'ط§ظ„ط¹ظˆط¯ط© ط¥ظ„ظ‰ ط§ظ„ط²ط¨ط§ط¦ظ† ط§ظ„ظ†ط´ط·ظٹظ†'
+              : 'ط£ط±ط´ظٹظپ ط§ظ„ط²ط¨ط§ط¦ظ†'
+          }
+        >
+          {showArchived ? 'â†©' : 'ًں—ƒ'}
+        </button>
+      </section>
+
+      {showNewCustomerForm && !showArchived && (
+        <section className="form-card new-customer-form-card">
+          <div className="form-card-title-row">
+            <h2>ط¥ط¶ط§ظپط© ط²ط¨ظˆظ† ط¬ط¯ظٹط¯</h2>
+
+            <button
+              type="button"
+              className="form-close-button"
+              onClick={cancelNewCustomer}
+            >
+              ط¥ط؛ظ„ط§ظ‚
+            </button>
+          </div>
+
+          <form onSubmit={saveNewCustomer}>
+            <label>
+              ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ†
+              <input
+                type="text"
+                value={newCustomerName}
+                onChange={(event) =>
+                  setNewCustomerName(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ
+              <input
+                type="tel"
+                value={newCustomerPhone}
+                onChange={(event) =>
+                  setNewCustomerPhone(event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              ظ…ظ„ط§ط­ط¸ط§طھ
+              <textarea
+                value={newCustomerNotes}
+                onChange={(event) =>
+                  setNewCustomerNotes(event.target.value)
+                }
+                rows="3"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={savingCustomer}
+            >
+              {savingCustomer
+                ? 'ط¬ط§ط±ظچ ط­ظپط¸ ط§ظ„ط²ط¨ظˆظ†...'
+                : 'ط­ظپط¸ ط§ظ„ط²ط¨ظˆظ† ظˆظپطھط­ ط£ظˆط±ط§ظ‚ظ‡'}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {message && (
+        <p className="message error">{message}</p>
+      )}
+
+      {!showArchived && recentCustomers.length > 0 && (
+        <section className="compact-customer-section">
+          <div className="compact-list-heading">
+            <h2>ط¢ط®ط± ط§ظ„ط²ط¨ط§ط¦ظ†</h2>
+
+            <button
+              type="button"
+              className="clear-recent-button"
+              onClick={clearRecentCustomers}
+            >
+              ظ…ط³ط­
+            </button>
+          </div>
+
+          <div className="compact-customer-list">
+            {recentCustomers.map((customer) => (
+              <article
+                className="compact-customer-row"
+                key={customer.id}
+              >
+                <button
+                  type="button"
+                  className="compact-customer-name"
+                  onClick={() => openCustomer(customer)}
+                >
+                  <strong>{customer.name}</strong>
+
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="compact-paper-add-button"
+                  onClick={() => openQuickPaper(customer)}
+                  aria-label={`ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ظ„ط²ط¨ظˆظ† ${customer.name}`}
+                  title={`ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ظ„ط²ط¨ظˆظ† ${customer.name}`}
+                >
+                  +
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="compact-customer-section">
+        <div className="compact-list-heading">
+          <h2>
+            {showArchived
+              ? 'ط§ظ„ط²ط¨ط§ط¦ظ† ط§ظ„ظ…ط¤ط±ط´ظپظˆظ†'
+              : search.trim()
+                ? 'ظ†طھط§ط¦ط¬ ط§ظ„ط¨ط­ط«'
+                : 'ظƒظ„ ط§ظ„ط²ط¨ط§ط¦ظ†'}
+          </h2>
+        </div>
+
+        {loading ? (
+          <div className="empty-card">
+            ط¬ط§ط±ظچ طھط­ظ…ظٹظ„ ط§ظ„ط²ط¨ط§ط¦ظ†...
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="empty-card">
+            {showArchived
+              ? 'ظ„ط§ ظٹظˆط¬ط¯ ط²ط¨ط§ط¦ظ† ظ…ط¤ط±ط´ظپظˆظ†'
+              : search.trim()
+                ? 'ظ„ط§ طھظˆط¬ط¯ ظ†طھط§ط¦ط¬ ظ…ط·ط§ط¨ظ‚ط©'
+                : 'ظ„ط§ ظٹظˆط¬ط¯ ط²ط¨ط§ط¦ظ†'}
+          </div>
+        ) : (
+          <div className="compact-customer-list">
+            {customers.map((customer) => (
+              <article
+                className="compact-customer-row"
+                key={customer.id}
+              >
+                <button
+                  type="button"
+                  className="compact-customer-name"
+                  onClick={() => openCustomer(customer)}
+                  disabled={customer.is_archived}
+                  title={
+                    customer.is_archived
+                      ? 'ط§ظ„ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپطŒ ط£ظ„ط؛ظگ ط§ظ„ط£ط±ط´ظپط© ط£ظˆظ„ظ‹ط§'
+                      : `ظپطھط­ ط£ظˆط±ط§ظ‚ ${customer.name}`
+                  }
+                >
+                  <strong>{customer.name}</strong>
+
+                  {customer.phone && (
+                    <small>{customer.phone}</small>
+                  )}
+                </button>
+
+                {showArchived ? (
+                  <button
+                    type="button"
+                    className="compact-restore-button"
+                    onClick={() =>
+                      restoreArchivedCustomer(customer)
+                    }
+                    aria-label={
+                      `ط¥ظ„ط؛ط§ط، ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ† ${customer.name}`
+                    }
+                    title={
+                      `ط¥ظ„ط؛ط§ط، ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ† ${customer.name}`
+                    }
+                  >
+                    â†؛
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="compact-paper-add-button"
+                    onClick={() => openQuickPaper(customer)}
+                    aria-label={
+                      `ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ظ„ط²ط¨ظˆظ† ${customer.name}`
+                    }
+                    title={
+                      `ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ظ„ط²ط¨ظˆظ† ${customer.name}`
+                    }
+                  >
+                    +
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}
+function CustomerPage({
+  session,
+  signOut
+}) {
+  const { customerId } = useParams()
+  const navigate = useNavigate()
+  const [customer, setCustomer] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    loadCustomer()
+  }, [customerId])
+
+  async function loadCustomer() {
+    setLoading(true)
+
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', customerId)
+      .single()
+
+    if (error) {
+      setMessage(error.message)
+      setCustomer(null)
+    } else {
+      setCustomer(data || null)
+    }
+
+    setLoading(false)
+  }
+
+  async function handleCustomerSaved() {
+    await loadCustomer()
+  }
+
+  async function handleCustomerArchived() {
+    navigate('/')
+  }
+
+  if (loading) {
+    return (
+      <main dir="rtl" className="page-center">
+        <p>ط¬ط§ط±ظچ طھط­ظ…ظٹظ„ ط§ظ„ط²ط¨ظˆظ†...</p>
+      </main>
+    )
+  }
+
+  if (!customer) {
+    return (
+      <main dir="rtl" className="app-page">
+        <Header
+          session={session}
+          signOut={signOut}
+          title="ط§ظ„ط²ط¨ظˆظ† ط؛ظٹط± ظ…ظˆط¬ظˆط¯"
+        />
+
+        <div className="empty-card">
+          ظ„ظ… ظٹطھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ ط§ظ„ط²ط¨ظˆظ†.
+        </div>
+
+        {message && (
+          <p className="message error">{message}</p>
+        )}
+      </main>
+    )
+  }
+
+  if (customer.is_archived) {
+    return (
+      <main dir="rtl" className="app-page">
+        <Header
+          session={session}
+          signOut={signOut}
+          title={customer.name}
+        />
+
+        <section className="customer-context-card">
+          <div>
+            <span>ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ</span>
+            <h2>{customer.name}</h2>
+            <p>
+              ظ‡ط°ط§ ط§ظ„ط²ط¨ظˆظ† ظ…ط¤ط±ط´ظپ ظˆظ„ط§ ظٹط¸ظ‡ط± ظپظٹ ط§ظ„ط¨ط­ط« ط§ظ„ط¹ط§ط¯ظٹ.
+            </p>
+          </div>
+
+          <Link
+            to="/"
+            className="change-customer-button"
+          >
+            ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ط²ط¨ط§ط¦ظ†
+          </Link>
+        </section>
+
+        <CustomerEditCard
+          customer={customer}
+          onSaved={handleCustomerSaved}
+          onArchived={handleCustomerArchived}
+        />
+      </main>
+    )
+  }
+
+  return (
+    <main dir="rtl" className="app-page">
+      <Header
+        session={session}
+        signOut={signOut}
+        title={customer.name}
+      />
+
+      <section className="customer-context-card">
+        <div>
+          <span>ط§ظ„ط²ط¨ظˆظ† ط§ظ„ظ…ط­ط¯ط¯</span>
+          <h2>{customer.name}</h2>
+
+          {customer.phone && (
+            <p>ط§ظ„ظ‡ط§طھظپ: {customer.phone}</p>
+          )}
+
+          {customer.notes && (
+            <p>ظ…ظ„ط§ط­ط¸ط§طھ: {customer.notes}</p>
+          )}
+        </div>
+
+        <Link
+          to="/"
+          className="change-customer-button"
+        >
+          طھط؛ظٹظٹط± ط§ظ„ط²ط¨ظˆظ†
+        </Link>
+      </section>
+
+      <CustomerEditCard
+        customer={customer}
+        onSaved={handleCustomerSaved}
+        onArchived={handleCustomerArchived}
+      />
+
+      <CustomerSummary customer={customer} />
+
+      <nav className="customer-tabs compact-customer-tabs">
+        <Link
+          to={`/customer/${customerId}/papers`}
+        >
+          ط§ظ„ط£ظˆط±ط§ظ‚
+        </Link>
+
+        <Link
+          to={`/customer/${customerId}/payments`}
+        >
+          ط§ظ„ط¯ظپط¹ط§طھ
+        </Link>
+
+        <Link
+          to={`/customer/${customerId}/report`}
+        >
+          ط§ظ„طھظ‚ط±ظٹط±
+        </Link>
+      </nav>
+
+      <Routes>
+        <Route
+          index
+          element={<Navigate to="papers" replace />}
+        />
+
+        <Route
+          path="papers"
+          element={
+            <CustomerPapers customer={customer} />
+          }
+        />
+
+        <Route
+          path="payments"
+          element={
+            <CustomerPayments customer={customer} />
+          }
+        />
+
+        <Route
+          path="report"
+          element={
+            <CustomerReport customer={customer} />
+          }
+        />
+      </Routes>
+    </main>
+  )
+}
+
+function CustomerEditCard({
+  customer,
+  onSaved,
+  onArchived
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState(customer.name || '')
+  const [phone, setPhone] = useState(
+    customer.phone || ''
+  )
+  const [notes, setNotes] = useState(
+    customer.notes || ''
+  )
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setName(customer.name || '')
+    setPhone(customer.phone || '')
+    setNotes(customer.notes || '')
+  }, [customer])
+
+  async function saveCustomer(event) {
+    event.preventDefault()
+
+    if (!name.trim()) {
+      setMessage('ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ† ظ…ط·ظ„ظˆط¨')
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await updateCustomer({
+        customerId: customer.id,
+        name,
+        phone,
+        notes
+      })
+
+      setMessage('طھظ… ط­ظپط¸ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط²ط¨ظˆظ†')
+      setShowForm(false)
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveCurrentCustomer() {
+    const confirmed = window.confirm(
+      `ظ‡ظ„ طھط±ظٹط¯ ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ†: ${customer.name}طں\n\n` +
+      'ط³ظٹط®طھظپظٹ ظ…ظ† ط§ظ„ط¨ط­ط« ط§ظ„ط¹ط§ط¯ظٹطŒ ظ„ظƒظ† ط£ظˆط±ط§ظ‚ظ‡ ظˆط¯ظپط¹ط§طھظ‡ ظ„ظ† طھظڈط­ط°ظپ.'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await archiveCustomer(customer.id)
+      await onArchived()
+    } catch (error) {
+      setMessage(error.message)
+      setSaving(false)
+    }
+  }
+
+  async function restoreCurrentCustomer() {
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await restoreCustomer(customer.id)
+      setMessage('طھظ… ط¥ظ„ط؛ط§ط، ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ†')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="customer-edit-card">
+      <div className="customer-edit-header">
+        <div>
+          <h2>ط¨ظٹط§ظ†ط§طھ ط§ظ„ط²ط¨ظˆظ†</h2>
+          <p>
+            طھط¹ط¯ظٹظ„ ط§ظ„ط§ط³ظ… ط£ظˆ ط§ظ„ظ‡ط§طھظپ ط£ظˆ ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھطŒ ط£ظˆ ط£ط±ط´ظپط©
+            ط§ظ„ط²ط¨ظˆظ†.
+          </p>
+        </div>
+
+        <button
+          className="edit-customer-button"
+          onClick={() => setShowForm(!showForm)}
+          disabled={saving}
+        >
+          {showForm
+            ? 'ط¥ظ„ط؛ط§ط، ط§ظ„طھط¹ط¯ظٹظ„'
+            : 'طھط¹ط¯ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط²ط¨ظˆظ†'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          className="customer-edit-form"
+          onSubmit={saveCustomer}
+        >
+          <label>
+            ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ†
+            <input
+              type="text"
+              value={name}
+              onChange={(event) =>
+                setName(event.target.value)
+              }
+              required
+            />
+          </label>
+
+          <label>
+            ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ
+            <input
+              type="tel"
+              value={phone}
+              onChange={(event) =>
+                setPhone(event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            ظ…ظ„ط§ط­ط¸ط§طھ
+            <textarea
+              value={notes}
+              onChange={(event) =>
+                setNotes(event.target.value)
+              }
+              rows="3"
+            />
+          </label>
+
+          <button type="submit" disabled={saving}>
+            {saving
+              ? 'ط¬ط§ط±ظچ ط§ظ„ط­ظپط¸...'
+              : 'ط­ظپط¸ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط²ط¨ظˆظ†'}
+          </button>
+        </form>
+      )}
+
+      {customer.is_archived ? (
+        <button
+          className="restore-customer-button"
+          onClick={restoreCurrentCustomer}
+          disabled={saving}
+        >
+          {saving
+            ? 'ط¬ط§ط±ظچ ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط©...'
+            : 'ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط©'}
+        </button>
+      ) : (
+        <button
+          className="archive-customer-button"
+          onClick={archiveCurrentCustomer}
+          disabled={saving}
+        >
+          {saving
+            ? 'ط¬ط§ط±ظچ ط§ظ„ط£ط±ط´ظپط©...'
+            : 'ط£ط±ط´ظپط© ط§ظ„ط²ط¨ظˆظ†'}
+        </button>
+      )}
+
+      {message && (
+        <p className="message">{message}</p>
+      )}
+    </section>
+  )
+}
+
+function CustomerSummary({ customer }) {
+  const [papers, setPapers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadPapers()
+  }, [customer.id])
+
+  async function loadPapers() {
+    try {
+      const data = await getPapers({
+        customerId: customer.id,
+        includeArchived: true
+      })
+
+      setPapers(data || [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="empty-card">
+        ط¬ط§ط±ظچ طھط­ظ…ظٹظ„ ط§ظ„ظ…ظ„ط®طµ...
+      </div>
+    )
+  }
+
+  const openPapers = papers.filter(
+    (paper) => paper.status === 'open'
+  )
+
+  const totalOpenPayments = openPapers.reduce(
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
+    0
+  )
+
+  const finalBalance = openPapers.reduce(
+    (sum, paper) => {
+      const balance = calculateBalance(
+        paper.total_amount,
+        paper.payments
+      )
+
+      return balance === null
+        ? sum
+        : sum + balance
+    },
+    0
+  )
+
+  return (
+    <section className="customer-summary-fixed">
+      <div className="summary-cards">
+        <article className="summary-card">
+          <span>ظƒظ„ ط§ظ„ط£ظˆط±ط§ظ‚</span>
+          <strong>{papers.length}</strong>
+        </article>
+
+        <article className="summary-card">
+          <span>ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ظپطھظˆط­ط©</span>
+          <strong>{openPapers.length}</strong>
+        </article>
+
+        <article className="summary-card">
+          <span>ط¯ظپط¹ط§طھ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ظپطھظˆط­ط©</span>
+          <strong>
+            {totalOpenPayments.toFixed(2)}
+          </strong>
+        </article>
+
+        <article className="summary-card total-summary-card">
+          <span>ط§ظ„ط±طµظٹط¯ ط§ظ„ظ†ظ‡ط§ط¦ظٹ ط§ظ„ظ…ظپطھظˆط­</span>
+          <strong>{finalBalance.toFixed(2)}</strong>
+        </article>
+      </div>
+
+      <p className="summary-note">
+        ط§ظ„ظ…ظ„ط®طµ ط§ظ„ظ…ط§ظ„ظٹ ظٹط­ط³ط¨ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ظپطھظˆط­ط© ظپظ‚ط·.
+      </p>
+    </section>
+  )
+}
+function CustomerPapers({ customer }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [papers, setPapers] = useState([])
+  const [thumbnailUrls, setThumbnailUrls] =
+    useState({})
+  const [filter, setFilter] = useState('all')
+   const [showForm, setShowForm] = useState(
+    new URLSearchParams(location.search).get(
+      'addPaper'
+    ) === '1'
+  )
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [selectedPaper, setSelectedPaper] =
+    useState(null)
+  const [selectedImage, setSelectedImage] =
+    useState(null)
+  const [imageHistory, setImageHistory] = useState([])
+
+  const [paperFile, setPaperFile] = useState(null)
+  const [paperDate, setPaperDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [paperNote, setPaperNote] = useState('')
+  const [totalAmount, setTotalAmount] = useState('')
+
+  const [quickAction, setQuickAction] = useState(null)
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickPaymentDate, setQuickPaymentDate] =
+    useState(new Date().toISOString().slice(0, 10))
+  const [quickPaymentNote, setQuickPaymentNote] =
+    useState('')
+  const [quickImageFile, setQuickImageFile] =
+    useState(null)
+  const [quickImageDescription, setQuickImageDescription] =
+    useState('')
+  const [quickArchiveReason, setQuickArchiveReason] =
+    useState('')
+
+  const [moveMode, setMoveMode] = useState(false)
+  const [selectedPaperIds, setSelectedPaperIds] =
+    useState([])
+  const [moveStep, setMoveStep] = useState('select')
+  const [targetSearch, setTargetSearch] = useState('')
+  const [targetCustomers, setTargetCustomers] =
+    useState([])
+  const [targetCustomer, setTargetCustomer] =
+    useState(null)
+  const [showPaperWhatsAppOptions, setShowPaperWhatsAppOptions] =
+    useState(false)
+
+  useEffect(() => {
+    loadPapers()
+  }, [customer.id])
+
+    useEffect(() => {
+    const params = new URLSearchParams(location.search)
+
+    setShowForm(params.get('addPaper') === '1')
+  }, [location.search])
+
+
+  async function loadPapers() {
+    try {
+      const data = await getPapers({
+        customerId: customer.id,
+        includeArchived: true
+      })
+
+      setPapers(data || [])
+
+      const entries = await Promise.all(
+        (data || []).map(async (paper) => {
+          try {
+            const url = await createPaperImageUrl(
+              paper.image_path
+            )
+
+            return [paper.id, url]
+          } catch {
+            return [paper.id, null]
+          }
+        })
+      )
+
+      setThumbnailUrls(Object.fromEntries(entries))
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+   function closePaperForm() {
+    setShowForm(false)
+
+    const params = new URLSearchParams(location.search)
+
+    if (params.get('addPaper') === '1') {
+      navigate(
+        `/customer/${customer.id}/papers`,
+        { replace: true }
+      )
+    }
+  }
+
+  function resetQuickAction() {
+    setQuickAction(null)
+    setQuickAmount('')
+    setQuickPaymentDate(
+      new Date().toISOString().slice(0, 10)
+    )
+    setQuickPaymentNote('')
+    setQuickImageFile(null)
+    setQuickImageDescription('')
+    setQuickArchiveReason('')
+  }
+
+  function startMoveMode() {
+    setMoveMode(true)
+    setSelectedPaperIds([])
+    setMoveStep('select')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+    setMessage('')
+  }
+
+  function cancelMoveMode() {
+    setMoveMode(false)
+    setSelectedPaperIds([])
+    setMoveStep('select')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+  }
+
+  function togglePaperSelection(paperId) {
+    setSelectedPaperIds((currentIds) => {
+      if (currentIds.includes(paperId)) {
+        return currentIds.filter((id) => id !== paperId)
+      }
+
+      return [...currentIds, paperId]
+    })
+  }
+
+  async function searchTargetCustomers(searchText) {
+    setTargetSearch(searchText)
+
+    const { data, error } = await getCustomers(
+      searchText,
+      {
+        archivedOnly: false
+      }
+    )
+
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    setTargetCustomers(
+      (data || []).filter(
+        (item) => item.id !== customer.id
+      )
+    )
+  }
+
+  function continueMoveToTarget() {
+    if (selectedPaperIds.length === 0) {
+      setMessage('ط§ط®طھط± ظˆط±ظ‚ط© ظˆط§ط­ط¯ط© ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„ ظ„ظ„ظ†ظ‚ظ„')
+      return
+    }
+
+    setMoveStep('target')
+    setTargetSearch('')
+    setTargetCustomers([])
+    setTargetCustomer(null)
+    setMessage('')
+  }
+
+  function chooseTargetCustomer(nextCustomer) {
+    setTargetCustomer(nextCustomer)
+    setMoveStep('confirm')
+    setMessage('')
+  }
+
+  async function confirmMovePapers() {
+    if (!targetCustomer) {
+      setMessage('ط§ط®طھط± ط§ظ„ط²ط¨ظˆظ† ط§ظ„ظ…ظ†ظ‚ظˆظ„ ط¥ظ„ظٹظ‡')
+      return
+    }
+
+    setSaving(true)
+    setMessage('ط¬ط§ط±ظچ ظ†ظ‚ظ„ ط§ظ„ط£ظˆط±ط§ظ‚...')
+
+    try {
+      const movedCount = await movePapersToCustomer({
+        paperIds: selectedPaperIds,
+        targetCustomerId: targetCustomer.id
+      })
+
+      cancelMoveMode()
+      setMessage(
+        `طھظ… ظ†ظ‚ظ„ ${movedCount} ظˆط±ظ‚ط© ط¥ظ„ظ‰ ${targetCustomer.name}`
+      )
+
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function savePaper(event) {
+    event.preventDefault()
+
+    if (!paperFile) {
+      setMessage('ط§ط®طھط± طµظˆط±ط© ط§ظ„ظˆط±ظ‚ط©')
+      return
+    }
+
+    setSaving(true)
+    setMessage('ط¬ط§ط±ظچ ط­ظپط¸ ط§ظ„ظˆط±ظ‚ط©...')
+
+    try {
+      const temporaryId = crypto.randomUUID()
+
+      const imagePath = await uploadPaperImage(
+        paperFile,
+        temporaryId
+      )
+
+      await createPaper({
+        customerId: customer.id,
+        paperDate,
+        imagePath,
+        note: paperNote,
+        totalAmount
+      })
+
+      setPaperFile(null)
+      setPaperNote('')
+      setTotalAmount('')
+      setPaperDate(
+        new Date().toISOString().slice(0, 10)
+      )
+      closePaperForm()
+      setMessage('طھظ…طھ ط¥ط¶ط§ظپط© ط§ظ„ظˆط±ظ‚ط©')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function openDetails(paper) {
+    if (moveMode) {
+      togglePaperSelection(paper.id)
+      return
+    }
+
+    try {
+      const imageUrl = await createPaperImageUrl(
+        paper.image_path
+      )
+
+      const history = await getPaperImageHistory(
+        paper.id
+      )
+
+      setSelectedPaper(paper)
+      setSelectedImage(imageUrl)
+      setImageHistory(history || [])
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  function openQuickAction(event, type, paper) {
+    event.stopPropagation()
+
+    setMessage('')
+    setQuickAction({
+      type,
+      paper
+    })
+
+    if (type === 'edit') {
+      setQuickAmount(
+        paper.total_amount === null
+          ? ''
+          : String(paper.total_amount)
+      )
+    }
+
+    if (type === 'payment') {
+      setQuickPaymentDate(
+        new Date().toISOString().slice(0, 10)
+      )
+    }
+  }
+
+  async function quickClosePaper(event, paper) {
+    event.stopPropagation()
+
+    const confirmed = window.confirm(
+      `ظ‡ظ„ طھط±ظٹط¯ ط¥ط؛ظ„ط§ظ‚ ط§ظ„ظˆط±ظ‚ط© ط¨طھط§ط±ظٹط® ${paper.paper_date}طں`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await closePaper(paper.id)
+      setMessage('طھظ… ط¥ط؛ظ„ط§ظ‚ ط§ظ„ظˆط±ظ‚ط©')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function quickReopenPaper(event, paper) {
+    event.stopPropagation()
+
+    const confirmed = window.confirm(
+      `ظ‡ظ„ طھط±ظٹط¯ ط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظˆط±ظ‚ط© ط¨طھط§ط±ظٹط® ${paper.paper_date}طں`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await reopenPaper(paper.id)
+      setMessage('طھظ…طھ ط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظˆط±ظ‚ط©')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickEdit(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await updatePaperAmount(
+        quickAction.paper.id,
+        quickAmount
+      )
+
+      setMessage('طھظ… ط­ظپط¸ ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickPayment(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await createPayment({
+        paperId: quickAction.paper.id,
+        amount: quickAmount,
+        paymentDate: quickPaymentDate,
+        note: quickPaymentNote
+      })
+
+      setMessage('طھظ…طھ ط¥ط¶ط§ظپط© ط§ظ„ط¯ظپط¹ط©')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickImage(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper || !quickImageFile) {
+      setMessage('ط§ط®طھط± ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©')
+      return
+    }
+
+    setSaving(true)
+    setMessage('ط¬ط§ط±ظچ ط±ظپط¹ ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©...')
+
+    try {
+      const imagePath = await uploadPaperImage(
+        quickImageFile,
+        quickAction.paper.id
+      )
+
+      await savePaperImageHistory({
+        paperId: quickAction.paper.id,
+        imagePath,
+        description: quickImageDescription
+      })
+
+      await updatePaperImagePath(
+        quickAction.paper.id,
+        imagePath
+      )
+
+      setMessage('طھظ… ط§ط³طھط¨ط¯ط§ظ„ ط§ظ„طµظˆط±ط© ظˆط­ظپط¸ ط§ظ„ظ‚ط¯ظٹظ…ط©')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveQuickArchive(event) {
+    event.preventDefault()
+
+    if (!quickAction?.paper) {
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    try {
+      await archivePaper(
+        quickAction.paper.id,
+        quickArchiveReason
+      )
+
+      setMessage('طھظ…طھ ط£ط±ط´ظپط© ط§ظ„ظˆط±ظ‚ط©')
+      resetQuickAction()
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function shareVisiblePapers(includeImageLinks) {
+    setMessage('ط¬ط§ط±ظچ طھط¬ظ‡ظٹط² ط±ط³ط§ظ„ط© WhatsApp...')
+
+    try {
+      const text =
+        await buildCustomerWhatsAppReport(
+          customer,
+          visiblePapers,
+          { includeImageLinks }
+        )
+
+      openWhatsAppMessage(text)
+
+      setMessage(
+        includeImageLinks
+          ? 'طھظ… طھط¬ظ‡ظٹط² ط§ظ„ط±ط³ط§ظ„ط© ظ…ط¹ ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±'
+          : 'طھظ… طھط¬ظ‡ظٹط² ط§ظ„ط±ط³ط§ظ„ط© ط¨ط¯ظˆظ† ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±'
+      )
+
+      setShowPaperWhatsAppOptions(false)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const visiblePapers = papers.filter((paper) => {
+    return filter === 'all'
+      ? true
+      : paper.status === filter
+  })
+
+  const selectedPapers = papers.filter((paper) =>
+    selectedPaperIds.includes(paper.id)
+  )
+
+  return (
+    <section className="customer-section">
+      <div className="section-header">
+        <div>
+          <h2>ط£ظˆط±ط§ظ‚ {customer.name}</h2>
+          <p>
+            ط¹ط¯ط¯ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ط¸ط§ظ‡ط±ط©: {visiblePapers.length}
+          </p>
+        </div>
+
+        <div className="papers-header-actions">
+          {!moveMode && (
+            <>
+              <button
+                className="move-papers-button"
+                onClick={startMoveMode}
+              >
+                ظ†ظ‚ظ„ ط£ظˆط±ط§ظ‚
+              </button>
+
+              <div className="paper-whatsapp-actions">
+                <button
+                  className="whatsapp-button"
+                  onClick={() =>
+                    setShowPaperWhatsAppOptions(
+                      !showPaperWhatsAppOptions
+                    )
+                  }
+                >
+                  WhatsApp
+                </button>
+
+                {showPaperWhatsAppOptions && (
+                  <div className="whatsapp-options">
+                    <button
+                      className="whatsapp-without-links-button"
+                      onClick={() =>
+                        shareVisiblePapers(false)
+                      }
+                    >
+                      ط¥ط±ط³ط§ظ„ ط¨ط¯ظˆظ† ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±
+                    </button>
+
+                    <button
+                      className="whatsapp-with-links-button"
+                      onClick={() =>
+                        shareVisiblePapers(true)
+                      }
+                    >
+                      ط¥ط±ط³ط§ظ„ ظ…ط¹ ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowForm(true)
+                }}
+              >
+                ط¥ط¶ط§ظپط© ظˆط±ظ‚ط©
+              </button>
+            </>
+          )}
+
+          {moveMode && (
+            <>
+              <button
+                className="cancel-move-button"
+                onClick={cancelMoveMode}
+              >
+                ط¥ظ„ط؛ط§ط، ط§ظ„ظ†ظ‚ظ„
+              </button>
+
+              <button
+                className="continue-move-button"
+                onClick={continueMoveToTarget}
+              >
+                ظ…طھط§ط¨ط¹ط© ط§ظ„ظ†ظ‚ظ„ ({selectedPaperIds.length})
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="filter-tabs">
+        {[
+          ['all', 'ظƒظ„ ط§ظ„ط£ظˆط±ط§ظ‚'],
+          ['open', 'ظ…ظپطھظˆط­ط©'],
+          ['closed', 'ظ…ط؛ظ„ظ‚ط©'],
+          ['archived', 'ظ…ط¤ط±ط´ظپط©']
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            className={
+              filter === value
+                ? 'filter-button active'
+                : 'filter-button'
+            }
+            onClick={() => setFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {moveMode && (
+        <section className="move-mode-note">
+          <strong>ظˆط¶ط¹ ظ†ظ‚ظ„ ط§ظ„ط£ظˆط±ط§ظ‚ ظ…ظپط¹ظ„.</strong>
+          ط§ط®طھط± ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„طھظٹ طھط±ظٹط¯ ظ†ظ‚ظ„ظ‡ط§طŒ ط«ظ… ط§ط¶ط؛ط·
+          آ«ظ…طھط§ط¨ط¹ط© ط§ظ„ظ†ظ‚ظ„آ».
+        </section>
+      )}
+
+      {showForm && (
+        <section className="form-card">
+          <div className="form-card-title-row">
+            <h2>ط¥ط¶ط§ظپط© ظˆط±ظ‚ط© ظ„ظ„ط²ط¨ظˆظ†</h2>
+
+            <button
+              type="button"
+              className="form-close-button"
+              onClick={closePaperForm}
+            >
+              ط¥ط؛ظ„ط§ظ‚
+            </button>
+          </div>
+
+          <form onSubmit={savePaper}>
+            <label>
+              طµظˆط±ط© ط§ظ„ظˆط±ظ‚ط©
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) =>
+                  setPaperFile(
+                    event.target.files?.[0] || null
+                  )
+                }
+                required
+              />
+            </label>
+
+            <label>
+              طھط§ط±ظٹط® ط§ظ„ظˆط±ظ‚ط©
+              <input
+                type="date"
+                value={paperDate}
+                onChange={(event) =>
+                  setPaperDate(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ط§ظ„ظ‚ظٹظ…ط©طŒ ط§ط®طھظٹط§ط±ظٹط©
+              <input
+                type="number"
+                step="0.01"
+                value={totalAmount}
+                onChange={(event) =>
+                  setTotalAmount(event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              ظ…ظ„ط§ط­ط¸ط©
+              <textarea
+                value={paperNote}
+                onChange={(event) =>
+                  setPaperNote(event.target.value)
+                }
+                rows="3"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'ط¬ط§ط±ظچ ط§ظ„ط­ظپط¸...'
+                : 'ط­ظپط¸ ط§ظ„ظˆط±ظ‚ط©'}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {quickAction && (
+        <QuickPaperActionModal
+          action={quickAction}
+          amount={quickAmount}
+          paymentDate={quickPaymentDate}
+          paymentNote={quickPaymentNote}
+          imageFile={quickImageFile}
+          imageDescription={quickImageDescription}
+          archiveReason={quickArchiveReason}
+          saving={saving}
+          setAmount={setQuickAmount}
+          setPaymentDate={setQuickPaymentDate}
+          setPaymentNote={setQuickPaymentNote}
+          setImageFile={setQuickImageFile}
+          setImageDescription={setQuickImageDescription}
+          setArchiveReason={setQuickArchiveReason}
+          onClose={resetQuickAction}
+          onSaveEdit={saveQuickEdit}
+          onSavePayment={saveQuickPayment}
+          onSaveImage={saveQuickImage}
+          onSaveArchive={saveQuickArchive}
+        />
+      )}
+
+      {moveStep === 'target' && (
+        <MoveTargetModal
+          sourceCustomer={customer}
+          search={targetSearch}
+          customers={targetCustomers}
+          onSearch={searchTargetCustomers}
+          onChoose={chooseTargetCustomer}
+          onBack={() => setMoveStep('select')}
+          onCancel={cancelMoveMode}
+        />
+      )}
+
+      {moveStep === 'confirm' && targetCustomer && (
+        <MoveConfirmModal
+          sourceCustomer={customer}
+          targetCustomer={targetCustomer}
+          papers={selectedPapers}
+          saving={saving}
+          onBack={() => setMoveStep('target')}
+          onCancel={cancelMoveMode}
+          onConfirm={confirmMovePapers}
+        />
+      )}
+
+      {message && (
+        <p className="message error">{message}</p>
+      )}
+
+      {visiblePapers.length === 0 ? (
+        <div className="empty-card">
+          ظ„ط§ طھظˆط¬ط¯ ط£ظˆط±ط§ظ‚ ط¶ظ…ظ† ظ‡ط°ط§ ط§ظ„طھط¨ظˆظٹط¨
+        </div>
+      ) : (
+        <div className="papers-list">
+          {visiblePapers.map((paper) => {
+            const balance = calculateBalance(
+              paper.total_amount,
+              paper.payments
+            )
+
+            const amountText =
+              paper.total_amount === null
+                ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨ط©'
+                : Number(paper.total_amount).toFixed(2)
+
+            const balanceText =
+              balance === null
+                ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨'
+                : balance.toFixed(2)
+
+            const isSelected = selectedPaperIds.includes(
+              paper.id
+            )
+
+            return (
+              <article
+                className={
+                  isSelected
+                    ? 'paper-card clickable-paper-card selected-paper-card'
+                    : 'paper-card clickable-paper-card'
+                }
+                key={paper.id}
+                onClick={() => openDetails(paper)}
+              >
+                {moveMode && (
+                  <label
+                    className="paper-select-checkbox"
+                    onClick={(event) =>
+                      event.stopPropagation()
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() =>
+                        togglePaperSelection(paper.id)
+                      }
+                    />
+                    ط§ط®طھظٹط§ط±
+                  </label>
+                )}
+
+                {thumbnailUrls[paper.id] ? (
+                  <img
+                    className="paper-thumbnail"
+                    src={thumbnailUrls[paper.id]}
+                    alt={`طµظˆط±ط© ظˆط±ظ‚ط© ط¨طھط§ط±ظٹط® ${paper.paper_date}`}
+                  />
+                ) : (
+                  <div className="paper-thumbnail placeholder-thumbnail">
+                    ظ„ط§ طھظˆط¬ط¯ طµظˆط±ط©
+                  </div>
+                )}
+
+                <div className="paper-card-content">
+                  <h3 className="paper-card-date">
+                    {paper.paper_date}
+                  </h3>
+
+                  <p>ط§ظ„ظ‚ظٹظ…ط©: {amountText}</p>
+
+                  <p>
+                    ط§ظ„ط¯ظپط¹ط§طھ:{' '}
+                    {getPaymentsTotal(paper).toFixed(2)}
+                  </p>
+
+                  <p>ط§ظ„ط±طµظٹط¯: {balanceText}</p>
+
+                  <p>
+                    ط§ظ„ط­ط§ظ„ط©: {getStatusText(paper.status)}
+                  </p>
+                </div>
+
+                {!moveMode && (
+                  <div
+                    className="paper-shortcuts"
+                    onClick={(event) =>
+                      event.stopPropagation()
+                    }
+                  >
+                    {paper.status !== 'archived' && (
+                      <>
+                        <button
+                          type="button"
+                          className="shortcut-edit"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'edit',
+                              paper
+                            )
+                          }
+                        >
+                          طھط¹ط¯ظٹظ„
+                        </button>
+
+                        <button
+                          type="button"
+                          className="shortcut-payment"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'payment',
+                              paper
+                            )
+                          }
+                        >
+                          ط¯ظپط¹ط©
+                        </button>
+
+                        <button
+                          type="button"
+                          className="shortcut-image"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'image',
+                              paper
+                            )
+                          }
+                        >
+                          ط§ط³طھط¨ط¯ط§ظ„
+                        </button>
+
+                        {paper.status === 'open' ? (
+                          <button
+                            type="button"
+                            className="shortcut-close"
+                            onClick={(event) =>
+                              quickClosePaper(event, paper)
+                            }
+                            disabled={saving}
+                          >
+                            ط¥ط؛ظ„ط§ظ‚
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="shortcut-reopen"
+                            onClick={(event) =>
+                              quickReopenPaper(event, paper)
+                            }
+                            disabled={saving}
+                          >
+                            ظپطھط­
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="shortcut-archive"
+                          onClick={(event) =>
+                            openQuickAction(
+                              event,
+                              'archive',
+                              paper
+                            )
+                          }
+                        >
+                          ط£ط±ط´ظپط©
+                        </button>
+                      </>
+                    )}
+
+                    {paper.status === 'archived' && (
+                      <span className="archived-paper-note">
+                        ط§ظپطھط­ ط§ظ„ظˆط±ظ‚ط© ظ„ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط©
+                      </span>
+                    )}
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      {selectedPaper && (
+        <PaperModal
+          paper={selectedPaper}
+          imageUrl={selectedImage}
+          imageHistory={imageHistory}
+          onClose={() => {
+            setSelectedPaper(null)
+            setSelectedImage(null)
+            setImageHistory([])
+          }}
+          onSaved={async () => {
+            await loadPapers()
+            setSelectedPaper(null)
+            setSelectedImage(null)
+            setImageHistory([])
+          }}
+        />
+      )}
+    </section>
+  )
+}
+function QuickPaperActionModal({
+  action,
+  amount,
+  paymentDate,
+  paymentNote,
+  imageFile,
+  imageDescription,
+  archiveReason,
+  saving,
+  setAmount,
+  setPaymentDate,
+  setPaymentNote,
+  setImageFile,
+  setImageDescription,
+  setArchiveReason,
+  onClose,
+  onSaveEdit,
+  onSavePayment,
+  onSaveImage,
+  onSaveArchive
+}) {
+  const paper = action.paper
+
+  return (
+    <div className="modal-backdrop">
+      <section className="quick-action-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onClose}
+        >
+          ط¥ط؛ظ„ط§ظ‚
+        </button>
+
+        <h2>
+          {getQuickActionTitle(action.type)}
+        </h2>
+
+        <p className="quick-action-paper-info">
+          ط§ظ„ظˆط±ظ‚ط© ط¨طھط§ط±ظٹط®: {paper.paper_date}
+        </p>
+
+        {action.type === 'edit' && (
+          <form onSubmit={onSaveEdit}>
+            <label>
+              ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©
+              <input
+                type="number"
+                step="0.01"
+                value={amount}
+                onChange={(event) =>
+                  setAmount(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'ط¬ط§ط±ظچ ط§ظ„ط­ظپط¸...'
+                : 'ط­ظپط¸ ط§ظ„طھط¹ط¯ظٹظ„'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'payment' && (
+          <form onSubmit={onSavePayment}>
+            <label>
+              ظ‚ظٹظ…ط© ط§ظ„ط¯ظپط¹ط©
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={amount}
+                onChange={(event) =>
+                  setAmount(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              طھط§ط±ظٹط® ط§ظ„ط¯ظپط¹ط©
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(event) =>
+                  setPaymentDate(event.target.value)
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ظ…ظ„ط§ط­ط¸ط©
+              <textarea
+                value={paymentNote}
+                onChange={(event) =>
+                  setPaymentNote(event.target.value)
+                }
+                rows="2"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'ط¬ط§ط±ظچ ط§ظ„ط­ظپط¸...'
+                : 'ط­ظپط¸ ط§ظ„ط¯ظپط¹ط©'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'image' && (
+          <form onSubmit={onSaveImage}>
+            <label>
+              ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) =>
+                  setImageFile(
+                    event.target.files?.[0] || null
+                  )
+                }
+                required
+              />
+            </label>
+
+            <label>
+              ظˆطµظپ ط§ظ„طµظˆط±ط©
+              <textarea
+                value={imageDescription}
+                onChange={(event) =>
+                  setImageDescription(event.target.value)
+                }
+                rows="2"
+                placeholder="ظ…ط«ط§ظ„: طھظ…طھ ط¥ط¶ط§ظپط© ط£ط³ط¹ط§ط± ط¬ط¯ظٹط¯ط©"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving
+                ? 'ط¬ط§ط±ظچ ط±ظپط¹ ط§ظ„طµظˆط±ط©...'
+                : 'ط­ظپط¸ ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©'}
+            </button>
+          </form>
+        )}
+
+        {action.type === 'archive' && (
+          <form onSubmit={onSaveArchive}>
+            <label>
+              ط³ط¨ط¨ ط§ظ„ط£ط±ط´ظپط©
+              <textarea
+                value={archiveReason}
+                onChange={(event) =>
+                  setArchiveReason(event.target.value)
+                }
+                rows="3"
+                placeholder="ظ…ط«ط§ظ„: طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ط·ظ„ط¨"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="archive-button"
+              disabled={saving}
+            >
+              {saving
+                ? 'ط¬ط§ط±ظچ ط§ظ„ط£ط±ط´ظپط©...'
+                : 'طھط£ظƒظٹط¯ ط§ظ„ط£ط±ط´ظپط©'}
+            </button>
+          </form>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function MoveTargetModal({
+  sourceCustomer,
+  search,
+  customers,
+  onSearch,
+  onChoose,
+  onBack,
+  onCancel
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="move-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onCancel}
+        >
+          ط¥ط؛ظ„ط§ظ‚
+        </button>
+
+        <h2>ط§ط®طھظٹط§ط± ط§ظ„ط²ط¨ظˆظ† ط§ظ„ظ…ظ†ظ‚ظˆظ„ ط¥ظ„ظٹظ‡</h2>
+
+        <p className="move-modal-note">
+          ط§ظ„ط£ظˆط±ط§ظ‚ ط³طھظڈظ†ظ‚ظ„ ظ…ظ† ط§ظ„ط²ط¨ظˆظ†:
+          <strong> {sourceCustomer.name}</strong>
+        </p>
+
+        <label>
+          ط§ط¨ط­ط« ط¹ظ† ط§ظ„ط²ط¨ظˆظ† ط§ظ„ط¬ط¯ظٹط¯
+          <input
+            type="search"
+            placeholder="ط§ظƒطھط¨ ط§ط³ظ… ط§ظ„ط²ط¨ظˆظ†..."
+            value={search}
+            onChange={(event) =>
+              onSearch(event.target.value)
+            }
+            autoFocus
+          />
+        </label>
+
+        {search.trim() && customers.length === 0 && (
+          <div className="empty-card">
+            ظ„ط§ ظٹظˆط¬ط¯ ط²ط¨ظˆظ† ظ†ط´ط· ظ…ط·ط§ط¨ظ‚ ظ„ظ„ط§ط³ظ….
+          </div>
+        )}
+
+        <div className="move-target-list">
+          {customers.map((customer) => (
+            <button
+              type="button"
+              className="move-target-item"
+              key={customer.id}
+              onClick={() => onChoose(customer)}
+            >
+              <strong>{customer.name}</strong>
+
+              {customer.phone && (
+                <small>{customer.phone}</small>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-bottom-actions">
+          <button
+            type="button"
+            className="back-button"
+            onClick={onBack}
+          >
+            ط±ط¬ظˆط¹
+          </button>
+
+          <button
+            type="button"
+            className="cancel-move-button"
+            onClick={onCancel}
+          >
+            ط¥ظ„ط؛ط§ط، ط§ظ„ظ†ظ‚ظ„
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function MoveConfirmModal({
+  sourceCustomer,
+  targetCustomer,
+  papers,
+  saving,
+  onBack,
+  onCancel,
+  onConfirm
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="move-modal">
+        <button
+          type="button"
+          className="close-button"
+          onClick={onCancel}
+        >
+          ط¥ط؛ظ„ط§ظ‚
+        </button>
+
+        <h2>طھط£ظƒظٹط¯ ظ†ظ‚ظ„ ط§ظ„ط£ظˆط±ط§ظ‚</h2>
+
+        <div className="move-confirm-details">
+          <p>
+            ظ…ظ† ط§ظ„ط²ط¨ظˆظ†:
+            <strong> {sourceCustomer.name}</strong>
+          </p>
+
+          <p>
+            ط¥ظ„ظ‰ ط§ظ„ط²ط¨ظˆظ†:
+            <strong> {targetCustomer.name}</strong>
+          </p>
+
+          <p>
+            ط¹ط¯ط¯ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ط®طھط§ط±ط©:
+            <strong> {papers.length}</strong>
+          </p>
+        </div>
+
+        <h3>ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„طھظٹ ط³ظٹطھظ… ظ†ظ‚ظ„ظ‡ط§</h3>
+
+        <ul className="move-papers-list">
+          {papers.map((paper) => (
+            <li key={paper.id}>
+              <strong>{paper.paper_date}</strong>
+              <span>
+                ط§ظ„ط­ط§ظ„ط©: {getStatusText(paper.status)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="move-warning">
+          ط§ظ„ظ†ظ‚ظ„ ظ„ط§ ظٹط­ط°ظپ ط§ظ„طµظˆط± ط£ظˆ ط§ظ„ط¯ظپط¹ط§طھ ط£ظˆ ط³ط¬ظ„ ط§ظ„طµظˆط±.
+          ط³ظٹطھظ… ظپظ‚ط· طھط؛ظٹظٹط± ط§ظ„ط²ط¨ظˆظ† ط§ظ„ظ…ط±طھط¨ط· ط¨ظ‡ط°ظ‡ ط§ظ„ط£ظˆط±ط§ظ‚.
+        </p>
+
+        <div className="modal-bottom-actions">
+          <button
+            type="button"
+            className="back-button"
+            onClick={onBack}
+            disabled={saving}
+          >
+            ط±ط¬ظˆط¹
+          </button>
+
+          <button
+            type="button"
+            className="cancel-move-button"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            ط¥ظ„ط؛ط§ط،
+          </button>
+
+          <button
+            type="button"
+            className="confirm-move-button"
+            onClick={onConfirm}
+            disabled={saving}
+          >
+            {saving
+              ? 'ط¬ط§ط±ظچ ظ†ظ‚ظ„ ط§ظ„ط£ظˆط±ط§ظ‚...'
+              : 'طھط£ظƒظٹط¯ ظ†ظ‚ظ„ ط§ظ„ط£ظˆط±ط§ظ‚'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function CustomerPayments({ customer }) {
+  const [papers, setPapers] = useState([])
+  const [selectedPaperId, setSelectedPaperId] =
+    useState('')
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    loadPapers()
+  }, [customer.id])
+
+  async function loadPapers() {
+    try {
+      const data = await getPapers({
+        customerId: customer.id,
+        includeArchived: true
+      })
+
+      setPapers(data || [])
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  async function savePayment(event) {
+    event.preventDefault()
+
+    const form = new FormData(event.currentTarget)
+
+    if (!selectedPaperId) {
+      setMessage('ط§ط®طھط± ط§ظ„ظˆط±ظ‚ط©')
+      return
+    }
+
+    try {
+      await createPayment({
+        paperId: selectedPaperId,
+        amount: form.get('amount'),
+        paymentDate: form.get('paymentDate'),
+        note: form.get('note')
+      })
+
+      event.currentTarget.reset()
+      setSelectedPaperId('')
+      setMessage('طھظ…طھ ط¥ط¶ط§ظپط© ط§ظ„ط¯ظپط¹ط©')
+      await loadPapers()
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const payments = papers.flatMap((paper) => {
+    return (paper.payments || [])
+      .filter((payment) => !payment.is_archived)
+      .map((payment) => ({
+        ...payment,
+        paperDate: paper.paper_date,
+        paperStatus: paper.status
+      }))
+  })
+
+  return (
+    <section className="customer-section">
+      <div className="section-header">
+        <div>
+          <h2>ط¯ظپط¹ط§طھ {customer.name}</h2>
+          <p>
+            ظƒظ„ ط§ظ„ط¯ظپط¹ط§طھ ط§ظ„طھط§ط±ظٹط®ظٹط©طŒ ط¨ظ…ط§ ظپظٹظ‡ط§ ط¯ظپط¹ط§طھ ط§ظ„ط£ظˆط±ط§ظ‚
+            ط§ظ„ظ…ط؛ظ„ظ‚ط©.
+          </p>
+        </div>
+      </div>
+
+      <section className="form-card">
+        <h2>ط¥ط¶ط§ظپط© ط¯ظپط¹ط©</h2>
+
+        <form onSubmit={savePayment}>
+          <label>
+            ط§ظ„ظˆط±ظ‚ط©
+            <select
+              value={selectedPaperId}
+              onChange={(event) =>
+                setSelectedPaperId(event.target.value)
+              }
+              required
+            >
+              <option value="">ط§ط®طھط± ط§ظ„ظˆط±ظ‚ط©</option>
+
+              {papers
+                .filter(
+                  (paper) => paper.status !== 'archived'
+                )
+                .map((paper) => (
+                  <option
+                    key={paper.id}
+                    value={paper.id}
+                  >
+                    {paper.paper_date} -{' '}
+                    {paper.total_amount ?? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨ط©'}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label>
+            ظ‚ظٹظ…ط© ط§ظ„ط¯ظپط¹ط©
+            <input
+              name="amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+            />
+          </label>
+
+          <label>
+            طھط§ط±ظٹط® ط§ظ„ط¯ظپط¹ط©
+            <input
+              name="paymentDate"
+              type="date"
+              defaultValue={
+                new Date().toISOString().slice(0, 10)
+              }
+              required
+            />
+          </label>
+
+          <label>
+            ظ…ظ„ط§ط­ط¸ط©
+            <textarea name="note" rows="2" />
+          </label>
+
+          <button type="submit">
+            ط­ظپط¸ ط§ظ„ط¯ظپط¹ط©
+          </button>
+        </form>
+
+        {message && (
+          <p className="message error">{message}</p>
+        )}
+      </section>
+
+      <section className="payments-table">
+        {payments.length === 0 ? (
+          <div className="empty-card">
+            ظ„ط§ طھظˆط¬ط¯ ط¯ظپط¹ط§طھ
+          </div>
+        ) : (
+          payments.map((payment) => (
+            <article
+              className="payment-row"
+              key={payment.id}
+            >
+              <div>
+                <strong>
+                  {Number(payment.amount).toFixed(2)}
+                </strong>
+
+                <span>
+                  طھط§ط±ظٹط® ط§ظ„ط¯ظپط¹ط©: {payment.payment_date}
+                </span>
+
+                <span>
+                  طھط§ط±ظٹط® ط§ظ„ظˆط±ظ‚ط©: {payment.paperDate}
+                </span>
+
+                <span>
+                  ط­ط§ظ„ط© ط§ظ„ظˆط±ظ‚ط©:{' '}
+                  {getStatusText(payment.paperStatus)}
+                </span>
+
+                {payment.note && (
+                  <small>{payment.note}</small>
+                )}
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+    </section>
+  )
+}
+
+function CustomerReport({ customer }) {
+  const [papers, setPapers] = useState([])
+  const [thumbnailUrls, setThumbnailUrls] =
+    useState({})
+  const [message, setMessage] = useState('')
+  const [showWhatsAppOptions, setShowWhatsAppOptions] =
+    useState(false)
+
+  useEffect(() => {
+    loadPapers()
+  }, [customer.id])
+
+  async function loadPapers() {
+    try {
+      const data = await getPapers({
+        customerId: customer.id,
+        includeArchived: false
+      })
+
+      setPapers(data || [])
+
+      const entries = await Promise.all(
+        (data || []).map(async (paper) => {
+          try {
+            const url = await createPaperImageUrl(
+              paper.image_path
+            )
+
+            return [paper.id, url]
+          } catch {
+            return [paper.id, null]
+          }
+        })
+      )
+
+      setThumbnailUrls(Object.fromEntries(entries))
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  async function shareReport(includeImageLinks) {
+    setMessage('ط¬ط§ط±ظچ طھط¬ظ‡ظٹط² ط§ظ„طھظ‚ط±ظٹط±...')
+
+    try {
+      const openPapers = papers.filter(
+        (paper) => paper.status === 'open'
+      )
+
+      const text =
+        await buildCustomerWhatsAppReport(
+          customer,
+          openPapers,
+          { includeImageLinks }
+        )
+
+      openWhatsAppMessage(text)
+
+      setMessage(
+        includeImageLinks
+          ? 'طھظ… طھط¬ظ‡ظٹط² ط§ظ„طھظ‚ط±ظٹط± ظ…ط¹ ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±'
+          : 'طھظ… طھط¬ظ‡ظٹط² ط§ظ„طھظ‚ط±ظٹط± ط¨ط¯ظˆظ† ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±'
+      )
+
+      setShowWhatsAppOptions(false)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const openPapers = papers.filter(
+    (paper) => paper.status === 'open'
+  )
+
+  const totalOpenPayments = openPapers.reduce(
+    (sum, paper) =>
+      sum + getPaymentsTotal(paper),
+    0
+  )
+
+  const finalBalance = openPapers.reduce(
+    (sum, paper) => {
+      const balance = calculateBalance(
+        paper.total_amount,
+        paper.payments
+      )
+
+      return balance === null
+        ? sum
+        : sum + balance
+    },
+    0
+  )
+
+  return (
+    <section className="customer-section">
+      <div className="section-header">
+        <div>
+          <h2>طھظ‚ط±ظٹط± {customer.name}</h2>
+          <p>
+            ظ‡ط°ط§ ط§ظ„طھظ‚ط±ظٹط± ظٹط­طھظˆظٹ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ظپطھظˆط­ط© ظپظ‚ط·.
+          </p>
+        </div>
+
+        <div className="whatsapp-actions">
+          <button
+            className="whatsapp-button"
+            onClick={() =>
+              setShowWhatsAppOptions(
+                !showWhatsAppOptions
+              )
+            }
+          >
+            ط¥ط±ط³ط§ظ„ WhatsApp
+          </button>
+
+          {showWhatsAppOptions && (
+            <div className="whatsapp-options">
+              <button
+                className="whatsapp-without-links-button"
+                onClick={() => shareReport(false)}
+              >
+                ط¥ط±ط³ط§ظ„ ط¨ط¯ظˆظ† ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±
+              </button>
+
+              <button
+                className="whatsapp-with-links-button"
+                onClick={() => shareReport(true)}
+              >
+                ط¥ط±ط³ط§ظ„ ظ…ط¹ ط±ظˆط§ط¨ط· ط§ظ„طµظˆط±
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {message && (
+        <p className="message">{message}</p>
+      )}
+
+      <section className="report-summary-card">
+        <div>
+          <span>ط¯ظپط¹ط§طھ ط§ظ„ط£ظˆط±ط§ظ‚ ط§ظ„ظ…ظپطھظˆط­ط©</span>
+          <strong>{totalOpenPayments.toFixed(2)}</strong>
+        </div>
+
+        <div>
+          <span>ط§ظ„ط±طµظٹط¯ ط§ظ„ظ†ظ‡ط§ط¦ظٹ ط§ظ„ظ…ظپطھظˆط­</span>
+          <strong>{finalBalance.toFixed(2)}</strong>
+        </div>
+      </section>
+
+      <section className="papers-list">
+        {openPapers.length === 0 ? (
+          <div className="empty-card">
+            ظ„ط§ طھظˆط¬ط¯ ط£ظˆط±ط§ظ‚ ظ…ظپطھظˆط­ط©
+          </div>
+        ) : (
+          openPapers.map((paper) => {
+            const balance = calculateBalance(
+              paper.total_amount,
+              paper.payments
+            )
+
+            const amountText =
+              paper.total_amount === null
+                ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨ط©'
+                : Number(paper.total_amount).toFixed(2)
+
+            const balanceText =
+              balance === null
+                ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨'
+                : balance.toFixed(2)
+
+            return (
+              <article
+                className="report-paper-row report-paper-with-image"
+                key={paper.id}
+              >
+                {thumbnailUrls[paper.id] ? (
+                  <img
+                    className="report-paper-thumbnail"
+                    src={thumbnailUrls[paper.id]}
+                    alt={`طµظˆط±ط© ظˆط±ظ‚ط© ط¨طھط§ط±ظٹط® ${paper.paper_date}`}
+                  />
+                ) : (
+                  <div className="report-paper-thumbnail placeholder-thumbnail">
+                    ظ„ط§ طھظˆط¬ط¯ طµظˆط±ط©
+                  </div>
+                )}
+
+                <div className="report-paper-content">
+                  <strong>
+                    ط§ظ„طھط§ط±ظٹط®: {paper.paper_date}
+                  </strong>
+
+                  <span>
+                    ط§ظ„ظ‚ظٹظ…ط©: {amountText}
+                  </span>
+
+                  <span>
+                    ط§ظ„ط¯ظپط¹ط§طھ:{' '}
+                    {getPaymentsTotal(paper).toFixed(2)}
+                  </span>
+
+                  <strong>
+                    ط§ظ„ط±طµظٹط¯: {balanceText}
+                  </strong>
+                </div>
+              </article>
+            )
+          })
+        )}
+      </section>
+    </section>
+  )
+}
+
+function PaperModal({
+  paper,
+  imageUrl,
+  imageHistory,
+  onClose,
+  onSaved
+}) {
+  const [showAmountForm, setShowAmountForm] =
+    useState(false)
+  const [showPaymentForm, setShowPaymentForm] =
+    useState(false)
+  const [showImageForm, setShowImageForm] =
+    useState(false)
+  const [showArchiveForm, setShowArchiveForm] =
+    useState(false)
+
+  const [amount, setAmount] = useState(
+    paper.total_amount === null
+      ? ''
+      : String(paper.total_amount)
+  )
+
+  const [paymentAmount, setPaymentAmount] =
+    useState('')
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [paymentNote, setPaymentNote] = useState('')
+
+  const [newImageFile, setNewImageFile] =
+    useState(null)
+  const [newImageDescription, setNewImageDescription] =
+    useState('')
+
+  const [archiveReason, setArchiveReason] = useState('')
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function saveAmount(event) {
+    event.preventDefault()
+    setSaving(true)
+
+    try {
+      await updatePaperAmount(paper.id, amount)
+      setMessage('طھظ… ط­ظپط¸ ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©')
+      setShowAmountForm(false)
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function savePayment(event) {
+    event.preventDefault()
+    setSaving(true)
+
+    try {
+      await createPayment({
+        paperId: paper.id,
+        amount: paymentAmount,
+        paymentDate,
+        note: paymentNote
+      })
+
+      setMessage('طھظ…طھ ط¥ط¶ط§ظپط© ط§ظ„ط¯ظپط¹ط©')
+      setPaymentAmount('')
+      setPaymentNote('')
+      setShowPaymentForm(false)
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function replaceImage(event) {
+    event.preventDefault()
+
+    if (!newImageFile) {
+      setMessage('ط§ط®طھط± ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©')
+      return
+    }
+
+    setSaving(true)
+    setMessage('ط¬ط§ط±ظچ ط±ظپط¹ ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©...')
+
+    try {
+      const imagePath = await uploadPaperImage(
+        newImageFile,
+        paper.id
+      )
+
+      await savePaperImageHistory({
+        paperId: paper.id,
+        imagePath,
+        description: newImageDescription
+      })
+
+      await updatePaperImagePath(
+        paper.id,
+        imagePath
+      )
+
+      setMessage('طھظ… ط§ط³طھط¨ط¯ط§ظ„ ط§ظ„طµظˆط±ط© ظˆط­ظپط¸ ط§ظ„ظ‚ط¯ظٹظ…ط©')
+      setShowImageForm(false)
+      setNewImageFile(null)
+      setNewImageDescription('')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function closeCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await closePaper(paper.id)
+      setMessage('طھظ… ط¥ط؛ظ„ط§ظ‚ ط§ظ„ظˆط±ظ‚ط©')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function reopenCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await reopenPaper(paper.id)
+      setMessage('طھظ…طھ ط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظˆط±ظ‚ط©')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveCurrentPaper() {
+    setSaving(true)
+
+    try {
+      await archivePaper(paper.id, archiveReason)
+      setMessage('طھظ…طھ ط£ط±ط´ظپط© ط§ظ„ظˆط±ظ‚ط©')
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function restoreArchivedPaper() {
+    setSaving(true)
+
+    try {
+      await restorePaper(paper.id)
+      setMessage(
+        'طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط© ظˆط¹ط§ط¯طھ ط§ظ„ظˆط±ظ‚ط© ظ…ظپطھظˆط­ط©'
+      )
+      await onSaved()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function openHistoryImage(imagePath) {
+    try {
+      const url = await createPaperImageUrl(imagePath)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setMessage('ظپط´ظ„ ظپطھط­ ط§ظ„طµظˆط±ط©')
+    }
+  }
+
+  const balance = calculateBalance(
+    paper.total_amount,
+    paper.payments
+  )
+
+  const amountText =
+    paper.total_amount === null
+      ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨ط©'
+      : Number(paper.total_amount).toFixed(2)
+
+  const balanceText =
+    balance === null
+      ? 'ط؛ظٹط± ظ…ط­ط³ظˆط¨'
+      : balance.toFixed(2)
+
+  return (
+    <div className="modal-backdrop">
+      <section className="paper-details-modal">
+        <button
+          className="close-button"
+          onClick={onClose}
+        >
+          ط¥ط؛ظ„ط§ظ‚
+        </button>
+
+        <h2>طھظپط§طµظٹظ„ ط§ظ„ظˆط±ظ‚ط©</h2>
+
+        {imageUrl && (
+          <img
+            className="paper-image"
+            src={imageUrl}
+            alt="طµظˆط±ط© ط§ظ„ظˆط±ظ‚ط©"
+          />
+        )}
+
+        <p>ط§ظ„طھط§ط±ظٹط®: {paper.paper_date}</p>
+        <p>ط§ظ„ظ‚ظٹظ…ط©: {amountText}</p>
+
+        <p>
+          ط§ظ„ط¯ظپط¹ط§طھ:{' '}
+          {getPaymentsTotal(paper).toFixed(2)}
+        </p>
+
+        <p>ط§ظ„ط±طµظٹط¯: {balanceText}</p>
+
+        <p>
+          ط§ظ„ط­ط§ظ„ط©: {getStatusText(paper.status)}
+        </p>
+
+        {paper.status === 'archived' ? (
+          <>
+            <p className="archive-info">
+              ظ‡ط°ظ‡ ط§ظ„ظˆط±ظ‚ط© ظ…ط¤ط±ط´ظپط©. ط¹ظ†ط¯ ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط© ط³طھط¹ظˆط¯
+              ظƒظˆط±ظ‚ط© ظ…ظپطھظˆط­ط©.
+            </p>
+
+            <button
+              className="restore-button"
+              onClick={restoreArchivedPaper}
+              disabled={saving}
+            >
+              {saving
+                ? 'ط¬ط§ط±ظچ ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط©...'
+                : 'ط¥ظ„ط؛ط§ط، ط§ظ„ط£ط±ط´ظپط© ظˆط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظˆط±ظ‚ط©'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="amount-button"
+              onClick={() =>
+                setShowAmountForm(!showAmountForm)
+              }
+            >
+              {paper.total_amount === null
+                ? 'ط¥ط¶ط§ظپط© ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©'
+                : 'طھط¹ط¯ظٹظ„ ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©'}
+            </button>
+
+            {showAmountForm && (
+              <form
+                className="amount-form"
+                onSubmit={saveAmount}
+              >
+                <label>
+                  ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(event) =>
+                      setAmount(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  ط­ظپط¸ ط§ظ„ظ‚ظٹظ…ط©
+                </button>
+              </form>
+            )}
+
+            <div className="status-actions">
+              {paper.status === 'open' && (
+                <button
+                  className="close-paper-button"
+                  onClick={closeCurrentPaper}
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'ط¬ط§ط±ظچ ط§ظ„ط¥ط؛ظ„ط§ظ‚...'
+                    : 'ط¥ط؛ظ„ط§ظ‚ ط§ظ„ظˆط±ظ‚ط©'}
+                </button>
+              )}
+
+              {paper.status === 'closed' && (
+                <button
+                  className="reopen-paper-button"
+                  onClick={reopenCurrentPaper}
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'ط¬ط§ط±ظچ ط§ظ„ظپطھط­...'
+                    : 'ط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظˆط±ظ‚ط©'}
+                </button>
+              )}
+
+              <button
+                className="archive-button"
+                onClick={() =>
+                  setShowArchiveForm(!showArchiveForm)
+                }
+                disabled={saving}
+              >
+                ط£ط±ط´ظپط© ط§ظ„ظˆط±ظ‚ط©
+              </button>
+            </div>
+
+            {showArchiveForm && (
+              <form
+                className="archive-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  archiveCurrentPaper()
+                }}
+              >
+                <label>
+                  ط³ط¨ط¨ ط§ظ„ط£ط±ط´ظپط©
+                  <textarea
+                    value={archiveReason}
+                    onChange={(event) =>
+                      setArchiveReason(event.target.value)
+                    }
+                    rows="3"
+                    placeholder="ظ…ط«ط§ظ„: طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ط·ظ„ط¨"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="archive-button"
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'ط¬ط§ط±ظچ ط§ظ„ط£ط±ط´ظپط©...'
+                    : 'طھط£ظƒظٹط¯ ط§ظ„ط£ط±ط´ظپط©'}
+                </button>
+              </form>
+            )}
+
+            <button
+              className="payment-button"
+              onClick={() =>
+                setShowPaymentForm(!showPaymentForm)
+              }
+            >
+              {showPaymentForm
+                ? 'ط¥ظ„ط؛ط§ط،'
+                : 'ط¥ط¶ط§ظپط© ط¯ظپط¹ط©'}
+            </button>
+
+            {showPaymentForm && (
+              <form
+                className="payment-form"
+                onSubmit={savePayment}
+              >
+                <label>
+                  ظ‚ظٹظ…ط© ط§ظ„ط¯ظپط¹ط©
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(event) =>
+                      setPaymentAmount(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  طھط§ط±ظٹط® ط§ظ„ط¯ظپط¹ط©
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) =>
+                      setPaymentDate(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  ظ…ظ„ط§ط­ط¸ط©
+                  <textarea
+                    value={paymentNote}
+                    onChange={(event) =>
+                      setPaymentNote(event.target.value)
+                    }
+                    rows="2"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? 'ط¬ط§ط±ظچ ط§ظ„ط­ظپط¸...'
+                    : 'ط­ظپط¸ ط§ظ„ط¯ظپط¹ط©'}
+                </button>
+              </form>
+            )}
+
+            <button
+              className="image-button"
+              onClick={() =>
+                setShowImageForm(!showImageForm)
+              }
+            >
+              {showImageForm
+                ? 'ط¥ظ„ط؛ط§ط، طھط؛ظٹظٹط± ط§ظ„طµظˆط±ط©'
+                : 'ط§ط³طھط¨ط¯ط§ظ„ ط§ظ„طµظˆط±ط©'}
+            </button>
+
+            {showImageForm && (
+              <form
+                className="image-form"
+                onSubmit={replaceImage}
+              >
+                <label>
+                  ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) =>
+                      setNewImageFile(
+                        event.target.files?.[0] || null
+                      )
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  ظˆطµظپ ط§ظ„طµظˆط±ط©
+                  <textarea
+                    value={newImageDescription}
+                    onChange={(event) =>
+                      setNewImageDescription(
+                        event.target.value
+                      )
+                    }
+                    rows="2"
+                    placeholder="ظ…ط«ط§ظ„: طھظ…طھ ط¥ط¶ط§ظپط© ط£ط³ط¹ط§ط± ط¬ط¯ظٹط¯ط©"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? 'ط¬ط§ط±ظچ ط±ظپط¹ ط§ظ„طµظˆط±ط©...'
+                    : 'ط­ظپط¸ ط§ظ„طµظˆط±ط© ط§ظ„ط¬ط¯ظٹط¯ط©'}
+                </button>
+              </form>
+            )}
+          </>
+        )}
+
+        <h3>ط³ط¬ظ„ ط§ظ„طµظˆط±</h3>
+
+        {imageHistory.length === 0 ? (
+          <p>ظ„ط§ ظٹظˆط¬ط¯ ط³ط¬ظ„ طµظˆط± ظ‚ط¯ظٹظ…</p>
+        ) : (
+          <ul className="image-history-list">
+            {imageHistory.map((image) => (
+              <li key={image.id}>
+                <div>
+                  <span>
+                    {new Date(
+                      image.created_at
+                    ).toLocaleString('ar-LB')}
+                  </span>
+
+                  <small>
+                    {image.description ||
+                      image.note ||
+                      'طµظˆط±ط© ط¨ط¯ظˆظ† ظˆطµظپ'}
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  className="small-button"
+                  onClick={() =>
+                    openHistoryImage(image.image_path)
+                  }
+                >
+                  ظپطھط­ ط§ظ„طµظˆط±ط©
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {message && (
+          <p className="message">{message}</p>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function getQuickActionTitle(type) {
+  if (type === 'edit') {
+    return 'طھط¹ط¯ظٹظ„ ظ‚ظٹظ…ط© ط§ظ„ظˆط±ظ‚ط©'
+  }
+
+  if (type === 'payment') {
+    return 'ط¥ط¶ط§ظپط© ط¯ظپط¹ط©'
+  }
+
+  if (type === 'image') {
+    return 'ط§ط³طھط¨ط¯ط§ظ„ ط§ظ„طµظˆط±ط©'
+  }
+
+  if (type === 'archive') {
+    return 'ط£ط±ط´ظپط© ط§ظ„ظˆط±ظ‚ط©'
+  }
+
+  return 'ط¥ط¬ط±ط§ط، ط§ظ„ظˆط±ظ‚ط©'
+}
+
+function getPaymentsTotal(paper) {
+  return (paper.payments || [])
+    .filter((payment) => !payment.is_archived)
+    .reduce(
+      (sum, payment) =>
+        sum + Number(payment.amount || 0),
+      0
+    )
+}
+
+function getStatusText(status) {
+  if (status === 'open') return 'ظ…ظپطھظˆط­ط©'
+  if (status === 'closed') return 'ظ…ط؛ظ„ظ‚ط©'
+  if (status === 'archived') return 'ظ…ط¤ط±ط´ظپط©'
+  return status
+}
+
+export default App

@@ -1,0 +1,73 @@
+﻿              onClick={() =>
+                setShowImageForm(!showImageForm)
+              }
+            >
+              {showImageForm
+                ? 'إلغاء تغيير الصورة'
+                : 'استبدال الصورة'}
+            </button>
+
+            {showImageForm && (
+              <form
+                className="image-form"
+                onSubmit={replaceImage}
+              >
+               <label className="paper-image-upload-label">
+  صورة الورقة الجديدة
+  <input
+    type="file"
+    accept="image/*"
+    capture="environment"
+    onChange={(event) =>
+      setNewImageFile(
+        event.target.files?.[0] || null
+      )
+    }
+    required
+  />
+</label>
+
+<input
+  ref={fileInputRef}
+  className="hidden-file-input"
+  type="file"
+  accept="image/*"
+  onChange={(event) =>
+    setNewImageFile(
+      event.target.files?.[0] || null
+    )
+  }
+/>
+
+  <input
+    ref={fileInputRef}
+    className="hidden-file-input"
+    type="file"
+    accept="image/*"
+    onChange={(event) =>
+      setPaperFile(event.target.files?.[0] || null)
+    }
+  />
+
+  <p className="selected-image-name">
+    {paperFile
+      ? `الصورة المختارة: ${paperFile.name}`
+      : 'اختر طريقة إضافة الصورة.'}
+  </p>
+</div>
+
+                <label>
+                  وصف الصورة
+                  <textarea
+                    value={newImageDescription}
+                    onChange={(event) =>
+                      setNewImageDescription(
+                        event.target.value
+                      )
+                    }
+                    rows="2"
+                    placeholder="مثال: تمت إضافة أسعار جديدة"
+                  />
+                </label>
+
+                <button type="submit" disabled={saving}>

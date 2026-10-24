@@ -46,6 +46,7 @@ import {
   uploadPaperImage
 } from './lib/storage'
 import { createPayment } from './lib/payments'
+import PricingPage from './PricingPage'
 import {
   getActivitiesForDate,
   getActivityUserName
@@ -142,6 +143,16 @@ function App() {
     <Routes>
       <Route
         path="/"
+        element={
+          <PricingPage
+            session={session}
+            signOut={signOut}
+          />
+        }
+      />
+
+      <Route
+        path="/papers"
         element={
           <CustomerSelectPage
             session={session}
@@ -373,6 +384,15 @@ function Header({
         <div className="topbar-actions compact-topbar-actions">
           <Link
             to="/"
+            className="header-icon-button pricing-header-button"
+            aria-label="مراجعة أذونات التسليم للتسعير"
+            title="مراجعة أذونات التسليم للتسعير"
+          >
+            ▦
+          </Link>
+
+          <Link
+            to="/papers"
             className="header-icon-button home-header-button"
             aria-label="اختيار زبون آخر"
             title="اختيار زبون آخر"
@@ -1593,7 +1613,7 @@ function CustomerPage({
   }
 
   async function handleCustomerArchived() {
-    navigate('/')
+    navigate('/papers')
   }
 
   if (loading) {
@@ -1643,7 +1663,7 @@ function CustomerPage({
           </div>
 
           <Link
-            to="/"
+            to="/papers"
             className="change-customer-button"
           >
             العودة للزبائن
@@ -1839,7 +1859,7 @@ function CustomerCompactBar({
           </button>
 
           <Link
-            to="/"
+            to="/papers"
             className="customer-action-icon change-customer-action"
             aria-label="تغيير الزبون"
             title="تغيير الزبون"

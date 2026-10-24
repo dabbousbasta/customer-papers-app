@@ -1,0 +1,25 @@
+﻿          <p className="message">لا توجد صور لهذه الورقة</p>
+        ) : (
+          <div className="paper-pages-gallery">
+            {currentPages.map((page, index) => (
+              <div
+                className="paper-page-item"
+                key={page.id}
+              >
+                {isPaperImagePdf(page.image_path) ? (
+                  
+                    className="paper-pdf-link"
+                    href={page.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    📄 فتح ملف PDF (صفحة {index + 1})
+                  </a>
+                ) : (
+                  <img
+                    className="paper-image"
+                    src={page.url}
+                    alt={`صفحة ${index + 1}`}
+                  />
+                )}
+
