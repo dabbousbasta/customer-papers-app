@@ -48,7 +48,7 @@ create table if not exists public.pricing_images (
   id uuid primary key default gen_random_uuid(),
   invoice_id uuid not null
     references public.pricing_invoices (id) on delete restrict,
-  delivery_number text not null check (length(trim(delivery_number)) > 0),
+  delivery_number text not null default '',
   image_path text not null unique,
   thumb_path text,
   is_deleted boolean not null default false,
@@ -60,6 +60,12 @@ create table if not exists public.pricing_images (
 create index if not exists pricing_images_invoice_idx
   on public.pricing_images (invoice_id)
   where is_deleted = false;
+
+-- رقم إذن التسليم صار اختياري (ورقة بيضاء بدون رقم = فاضي)
+alter table public.pricing_images
+  alter column delivery_number set default '';
+alter table public.pricing_images
+  drop constraint if exists pricing_images_delivery_number_check;
 
 create index if not exists pricing_images_delivery_idx
   on public.pricing_images (delivery_number);

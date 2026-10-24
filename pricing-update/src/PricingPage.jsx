@@ -58,8 +58,14 @@ function groupByDelivery(images) {
     groups.get(image.delivery_number).push(image)
   }
 
+  // تصاعدي، والأوراق بدون رقم إذن بالآخر
   return [...groups.entries()]
-    .sort((a, b) => compareNumbersAsc(a[0], b[0]))
+    .sort((a, b) => {
+      if (!a[0] && !b[0]) return 0
+      if (!a[0]) return 1
+      if (!b[0]) return -1
+      return compareNumbersAsc(a[0], b[0])
+    })
     .map(([deliveryNumber, groupImages]) => ({
       deliveryNumber,
       images: groupImages
@@ -606,13 +612,13 @@ export default function PricingPage({ session, signOut }) {
             <div className="pr-add-buttons">
               <button
                 type="button"
+                className="pr-primary"
                 onClick={() => setModal({ mode: 'register' })}
               >
-                + حساب وفواتير
+                + ورقة جديدة
               </button>
               <button
                 type="button"
-                className="pr-primary"
                 onClick={() => setModal({ mode: 'images' })}
               >
                 + صور
@@ -642,7 +648,7 @@ export default function PricingPage({ session, signOut }) {
               : isArchiveTab
                 ? 'لا توجد فواتير مؤرشفة'
                 : isWaitingTab
-                  ? 'كل الفواتير المسجلة فيها صور. اضغط «+ حساب وفواتير» لتسجيل فواتير جديدة.'
+                  ? 'كل الفواتير المسجلة فيها صور. اضغط «+ ورقة جديدة» لتسجيل فواتير جديدة.'
                   : 'لا توجد فواتير مطلوب تسعيرها. اضغط «+ صور» للبدء.'}
           </p>
         ) : (
@@ -967,7 +973,9 @@ function InvoiceImages({ images, onOpen }) {
       {groups.map((group) => (
         <div key={group.deliveryNumber} className="pr-delivery">
           <h4>
-            إذن تسليم {group.deliveryNumber}
+            {group.deliveryNumber
+              ? `إذن تسليم ${group.deliveryNumber}`
+              : 'بدون رقم إذن'}
             <small>{group.images.length} صورة</small>
           </h4>
 
@@ -987,7 +995,7 @@ function InvoiceImages({ images, onOpen }) {
                   {url ? (
                     <img
                       src={url}
-                      alt={`إذن ${image.delivery_number} صورة ${groupIndex + 1}`}
+                      alt={`إذن ${image.delivery_number || 'بدون رقم'} صورة ${groupIndex + 1}`}
                       loading="lazy"
                       decoding="async"
                     />
@@ -997,7 +1005,10 @@ function InvoiceImages({ images, onOpen }) {
                     </span>
                   )}
                   <span className="pr-full-label">
-                    إذن {image.delivery_number} · {groupIndex + 1}/
+                    {image.delivery_number
+                      ? `إذن ${image.delivery_number}`
+                      : 'بدون رقم'}{' '}
+                    · {groupIndex + 1}/
                     {group.images.length}
                   </span>
                 </button>
@@ -1124,7 +1135,9 @@ function ImageViewer({
   async function handleDelete() {
     if (
       !window.confirm(
-        `حذف هذه الصورة من إذن التسليم ${image.delivery_number}؟`
+        image.delivery_number
+          ? `حذف هذه الصورة من إذن التسليم ${image.delivery_number}؟`
+          : 'حذف هذه الصورة؟'
       )
     ) {
       return
@@ -1181,7 +1194,10 @@ function ImageViewer({
             {context.accountName} · فاتورة {context.invoiceNumber}
           </strong>
           <small>
-            إذن تسليم {image.delivery_number} · صورة {index + 1} من{' '}
+            {image.delivery_number
+              ? `إذن تسليم ${image.delivery_number}`
+              : 'بدون رقم إذن'}{' '}
+            · صورة {index + 1} من{' '}
             {images.length}
           </small>
         </div>
@@ -1690,12 +1706,6 @@ function ImagesStep({
   )
 
   function openPicker(inputRef) {
-    if (!cleanDocumentNumber(deliveryNumber)) {
-      setError('اكتب رقم إذن التسليم أولًا')
-      deliveryInputRef.current?.focus()
-      return
-    }
-
     setError('')
     inputRef.current?.click()
   }
@@ -1744,16 +1754,9 @@ function ImagesStep({
   }
 
   const pendingItems = queue.filter((item) => item.status !== 'done')
-  const missingNumber = pendingItems.some(
-    (item) => !cleanDocumentNumber(item.deliveryNumber)
-  )
   const doneCount = queue.filter((item) => item.status === 'done').length
 
   async function handleUpload() {
-    if (missingNumber) {
-      setError('في صور بدون رقم إذن تسليم')
-      return
-    }
 
     const items = queueRef.current.filter(
       (item) => item.status !== 'done'
@@ -1857,7 +1860,7 @@ function ImagesStep({
           autoFocus
           value={deliveryNumber}
           onChange={(event) => setDeliveryNumber(event.target.value)}
-          placeholder="مثال: 320"
+          placeholder="اختياري، مثال: 320"
           disabled={uploading}
         />
       </label>

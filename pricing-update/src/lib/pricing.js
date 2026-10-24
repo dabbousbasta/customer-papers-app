@@ -322,11 +322,8 @@ export async function uploadPricingImage({
   deliveryNumber,
   file
 }) {
-  const cleanDelivery = cleanDocumentNumber(deliveryNumber)
-
-  if (!cleanDelivery) {
-    throw new Error('رقم إذن التسليم مطلوب')
-  }
+  // رقم الإذن اختياري: الورقة بدون رقم بتنحفظ فاضية
+  const cleanDelivery = cleanDocumentNumber(deliveryNumber || '')
 
   if (!file?.type?.startsWith('image/')) {
     throw new Error('الملف ليس صورة')
@@ -408,11 +405,8 @@ export async function updatePricingImageDelivery(
   imageId,
   deliveryNumber
 ) {
-  const cleanDelivery = cleanDocumentNumber(deliveryNumber)
-
-  if (!cleanDelivery) {
-    throw new Error('رقم إذن التسليم مطلوب')
-  }
+  // رقم الإذن اختياري: الورقة بدون رقم بتنحفظ فاضية
+  const cleanDelivery = cleanDocumentNumber(deliveryNumber || '')
 
   const { data, error } = await supabase
     .from('pricing_images')

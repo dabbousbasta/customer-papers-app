@@ -129,10 +129,11 @@ export default function RegisterModal({
   onImageUploaded,
   onClose
 }) {
-  const [mode, setMode] = useState('single')
+  const [mode, setMode] = useState('paper')
   const [saving, setSaving] = useState(false)
   const [pendingImages, setPendingImages] = useState(0)
   const lookups = useLookups(accounts, invoices)
+  const uploader = useBackgroundUploader(onImageUploaded)
 
   // الحفظ المشترك: ينشئ الحساب إذا مش موجود، وبعدين الفواتير الجديدة
   async function saveEntries(entries, onProgress) {
@@ -215,6 +216,18 @@ export default function RegisterModal({
   function requestClose() {
     if (saving) return
 
+    if (uploader.active > 0) {
+      window.alert(`انتظر حتى ينتهي رفع ${uploader.active} صورة`)
+      return
+    }
+
+    if (
+      uploader.failed > 0 &&
+      !window.confirm(`في ${uploader.failed} صورة فشل رفعها. إغلاق وتركها؟`)
+    ) {
+      return
+    }
+
     if (
       pendingImages > 0 &&
       !window.confirm('في صور لم تُرفع بعد. إغلاق النافذة وتركها؟')
@@ -234,7 +247,7 @@ export default function RegisterModal({
     >
       <div className="pr-modal pr-register" role="dialog" aria-modal="true">
         <div className="pr-modal-head">
-          <h2>تسجيل حسابات وفواتير</h2>
+          <h2>تسجيل الأوراق</h2>
           <button
             type="button"
             className="pr-icon-button pr-muted"
@@ -248,10 +261,17 @@ export default function RegisterModal({
         <div className="pr-mini-tabs">
           <button
             type="button"
+            className={mode === 'paper' ? 'active' : ''}
+            onClick={() => !saving && setMode('paper')}
+          >
+            ورقة ورقة
+          </button>
+          <button
+            type="button"
             className={mode === 'single' ? 'active' : ''}
             onClick={() => !saving && setMode('single')}
           >
-            حساب حساب
+            عدة فواتير
           </button>
           <button
             type="button"
@@ -272,7 +292,19 @@ export default function RegisterModal({
           </button>
         </div>
 
-        {mode === 'single' ? (
+        {mode === 'paper' ? (
+          <PaperEntry
+            initialAccountId={initialAccountId}
+            accounts={accounts}
+            lookups={lookups}
+            imagesByInvoice={imagesByInvoice}
+            saving={saving}
+            setSaving={setSaving}
+            saveEntries={saveEntries}
+            uploader={uploader}
+            onClose={requestClose}
+          />
+        ) : mode === 'single' ? (
           <SingleEntry
             initialAccountId={initialAccountId}
             accounts={accounts}
@@ -294,6 +326,496 @@ export default function RegisterModal({
             onClose={requestClose}
           />
         )}
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
+// رفع الصور بالخلفية: بتكمل شغلك على الورقة الجاية وهي عم ترفع
+// =====================================================
+
+function useBackgroundUploader(onImageUploaded) {
+  const [jobs, setJobs] = useState([])
+  const jobsRef = useRef([])
+  const runningRef = useRef(0)
+  const uploadedRef = useRef(onImageUploaded)
+
+  useEffect(() => {
+    uploadedRef.current = onImageUploaded
+  }, [onImageUploaded])
+
+  useEffect(
+    () => () => {
+      for (const job of jobsRef.current) URL.revokeObjectURL(job.previewUrl)
+    },
+    []
+  )
+
+  function commit(updater) {
+    jobsRef.current = updater(jobsRef.current)
+    setJobs(jobsRef.current)
+  }
+
+  function pump() {
+    while (runningRef.current < UPLOAD_WORKERS) {
+      const job = jobsRef.current.find((item) => item.status === 'waiting')
+      if (!job) return
+
+      runningRef.current += 1
+      commit((list) =>
+        list.map((item) =>
+          item.key === job.key ? { ...item, status: 'uploading' } : item
+        )
+      )
+
+      uploadPricingImage({
+        invoiceId: job.invoiceId,
+        deliveryNumber: job.deliveryNumber,
+        file: job.file
+      })
+        .then((saved) => {
+          uploadedRef.current?.(saved)
+          URL.revokeObjectURL(job.previewUrl)
+          commit((list) => list.filter((item) => item.key !== job.key))
+        })
+        .catch((error) => {
+          commit((list) =>
+            list.map((item) =>
+              item.key === job.key
+                ? { ...item, status: 'failed', error: error.message }
+                : item
+            )
+          )
+        })
+        .finally(() => {
+          runningRef.current -= 1
+          pump()
+        })
+    }
+  }
+
+  function enqueue(newJobs) {
+    commit((list) => [...list, ...newJobs])
+    pump()
+  }
+
+  function retryFailed() {
+    commit((list) =>
+      list.map((item) =>
+        item.status === 'failed'
+          ? { ...item, status: 'waiting', error: '' }
+          : item
+      )
+    )
+    pump()
+  }
+
+  function dropFailed() {
+    commit((list) =>
+      list.filter((item) => {
+        if (item.status !== 'failed') return true
+        URL.revokeObjectURL(item.previewUrl)
+        return false
+      })
+    )
+  }
+
+  return {
+    jobs,
+    active: jobs.filter((item) => item.status !== 'failed').length,
+    failed: jobs.filter((item) => item.status === 'failed').length,
+    enqueue,
+    retryFailed,
+    dropFailed
+  }
+}
+
+// =====================================================
+// ورقة ورقة: العميل + رقم الإذن + رقم الفاتورة + الصور، حفظ، والورقة الجاية
+// =====================================================
+
+function PaperEntry({
+  initialAccountId,
+  accounts,
+  lookups,
+  imagesByInvoice,
+  saving,
+  setSaving,
+  saveEntries,
+  uploader,
+  onClose
+}) {
+  const initialAccount = accounts.find(
+    (account) => account.id === initialAccountId
+  )
+  const [accountText, setAccountText] = useState(initialAccount?.name || '')
+  const [selectedId, setSelectedId] = useState(initialAccount?.id || null)
+  const [deliveryNumber, setDeliveryNumber] = useState('')
+  const [invoiceText, setInvoiceText] = useState('')
+  const [photos, setPhotos] = useState([])
+  const [keepCustomer, setKeepCustomer] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [recent, setRecent] = useState([])
+  const accountInputRef = useRef(null)
+  const deliveryInputRef = useRef(null)
+  const invoiceInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const filesInputRef = useRef(null)
+  const photosRef = useRef(photos)
+
+  useEffect(() => {
+    photosRef.current = photos
+  }, [photos])
+
+  useEffect(
+    () => () => {
+      for (const photo of photosRef.current) {
+        URL.revokeObjectURL(photo.previewUrl)
+      }
+    },
+    []
+  )
+
+  const selectedAccount =
+    accounts.find((account) => account.id === selectedId) ||
+    lookups.accountByName.get(normalizeSearchText(accountText)) ||
+    null
+  const cleanName = accountText.trim().replace(/\s+/g, ' ')
+  const isNewAccount = Boolean(cleanName) && !selectedAccount
+  const invoiceNumber = cleanDocumentNumber(invoiceText)
+  const existingInvoice = selectedAccount
+    ? (lookups.invoicesByAccount.get(selectedAccount.id) || []).find(
+        (invoice) => invoice.invoice_number === invoiceNumber
+      )
+    : null
+  const existingCount = existingInvoice
+    ? imagesByInvoice.get(existingInvoice.id)?.length || 0
+    : 0
+  const canSave = !saving && Boolean(cleanName) && Boolean(invoiceNumber)
+
+  function addFiles(fileList) {
+    const files = [...(fileList || [])].filter((file) =>
+      file.type.startsWith('image/')
+    )
+
+    if (files.length === 0) return
+
+    setMessage(null)
+    setPhotos((current) => [
+      ...current,
+      ...files.map((file) => {
+        queueSequence += 1
+        return {
+          key: `p${queueSequence}`,
+          file,
+          previewUrl: URL.createObjectURL(file)
+        }
+      })
+    ])
+  }
+
+  function removePhoto(key) {
+    setPhotos((current) => {
+      const photo = current.find((item) => item.key === key)
+      if (photo) URL.revokeObjectURL(photo.previewUrl)
+      return current.filter((item) => item.key !== key)
+    })
+  }
+
+  async function handleSave() {
+    if (!cleanName) {
+      setMessage({ error: true, text: 'اكتب اسم العميل' })
+      accountInputRef.current?.focus()
+      return
+    }
+
+    if (!invoiceNumber) {
+      setMessage({ error: true, text: 'اكتب رقم الفاتورة' })
+      invoiceInputRef.current?.focus()
+      return
+    }
+
+    if (saving) return
+
+    setSaving(true)
+    setMessage(null)
+
+    const name = selectedAccount ? selectedAccount.name : cleanName
+    const result = await saveEntries([{ name, numbers: [invoiceNumber] }])
+    const invoiceId = result.invoiceIds.get(invoiceNumber)
+
+    setSaving(false)
+
+    if (result.errors.length || !result.account || !invoiceId) {
+      setMessage({
+        error: true,
+        text: `ما انحفظت الورقة: ${result.errors.join(' — ') || 'خطأ غير معروف'}`
+      })
+      return
+    }
+
+    const delivery = cleanDocumentNumber(deliveryNumber)
+
+    // الصور بتنرفع بالخلفية، والشاشة بتفضى للورقة الجاية
+    uploader.enqueue(
+      photos.map((photo) => ({
+        key: photo.key,
+        file: photo.file,
+        previewUrl: photo.previewUrl,
+        invoiceId,
+        deliveryNumber: delivery,
+        status: 'waiting',
+        error: ''
+      }))
+    )
+
+    setRecent((list) =>
+      [
+        {
+          key: `s${Date.now()}`,
+          name: result.account.name,
+          invoice: invoiceNumber,
+          delivery,
+          count: photos.length,
+          newAccount: result.newAccounts > 0,
+          newInvoice: result.newInvoices > 0
+        },
+        ...list
+      ].slice(0, 5)
+    )
+
+    setPhotos([])
+    setDeliveryNumber('')
+
+    if (keepCustomer) {
+      setSelectedId(result.account.id)
+      setAccountText(result.account.name)
+    } else {
+      setAccountText('')
+      setSelectedId(null)
+      setInvoiceText('')
+    }
+
+    // بعد ما ترجع الخانات قابلة للكتابة
+    setTimeout(() => {
+      ;(keepCustomer ? deliveryInputRef : accountInputRef).current?.focus()
+    }, 0)
+  }
+
+  return (
+    <div className="pr-step pr-paper">
+      <AccountCombobox
+        inputRef={accountInputRef}
+        label="اسم العميل"
+        accounts={accounts}
+        lookups={lookups}
+        text={accountText}
+        selectedId={selectedAccount?.id || null}
+        disabled={saving}
+        onTextChange={(value) => {
+          setAccountText(value)
+          setSelectedId(null)
+          setMessage(null)
+        }}
+        onSelect={(account) => {
+          setAccountText(account.name)
+          setSelectedId(account.id)
+          deliveryInputRef.current?.focus()
+        }}
+        onChooseNew={() => deliveryInputRef.current?.focus()}
+      />
+      {isNewAccount && (
+        <p className="pr-account-state new">عميل جديد · رح ينحفظ مع الورقة</p>
+      )}
+
+      <div className="pr-paper-numbers">
+        <label className="pr-field">
+          <span>رقم إذن التسليم</span>
+          <input
+            ref={deliveryInputRef}
+            value={deliveryNumber}
+            onChange={(event) => setDeliveryNumber(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                invoiceInputRef.current?.focus()
+              }
+            }}
+            placeholder="فاضي إذا ما في"
+            inputMode="numeric"
+            autoComplete="off"
+            disabled={saving}
+          />
+        </label>
+        <label className="pr-field">
+          <span>رقم الفاتورة</span>
+          <input
+            ref={invoiceInputRef}
+            value={invoiceText}
+            onChange={(event) => {
+              setInvoiceText(event.target.value)
+              setMessage(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                handleSave()
+              }
+            }}
+            placeholder="مثال: 1500"
+            inputMode="numeric"
+            autoComplete="off"
+            disabled={saving}
+          />
+        </label>
+      </div>
+      {invoiceNumber && cleanName && (
+        <p
+          className={
+            existingInvoice ? 'pr-account-state existing' : 'pr-account-state new'
+          }
+        >
+          {existingInvoice
+            ? `فاتورة مسجلة${existingInvoice.is_archived ? ' (بالأرشيف)' : ''} · فيها ${existingCount} صورة · الصور رح تنضاف عليها`
+            : 'فاتورة جديدة'}
+        </p>
+      )}
+
+      <input
+        ref={cameraInputRef}
+        className="pr-hidden-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => {
+          addFiles(event.target.files)
+          event.target.value = ''
+        }}
+      />
+      <input
+        ref={filesInputRef}
+        className="pr-hidden-input"
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(event) => {
+          addFiles(event.target.files)
+          event.target.value = ''
+        }}
+      />
+
+      <div className="pr-pick-buttons">
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={saving}
+        >
+          {photos.length ? 'صورة كمان' : 'صوّر الورقة'}
+        </button>
+        <button
+          type="button"
+          onClick={() => filesInputRef.current?.click()}
+          disabled={saving}
+        >
+          من الملفات
+        </button>
+      </div>
+
+      {photos.length > 0 && (
+        <ul className="pr-paper-photos">
+          {photos.map((photo, index) => (
+            <li key={photo.key}>
+              <img src={photo.previewUrl} alt={`صورة ${index + 1}`} />
+              <button
+                type="button"
+                className="pr-queue-remove"
+                onClick={() => removePhoto(photo.key)}
+                disabled={saving}
+                aria-label="إزالة الصورة"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <label className="pr-check">
+        <input
+          type="checkbox"
+          checked={keepCustomer}
+          onChange={(event) => setKeepCustomer(event.target.checked)}
+        />
+        خلّي نفس العميل والفاتورة للورقة الجاية
+      </label>
+
+      {message && (
+        <p className={message.error ? 'pr-message error' : 'pr-message'}>
+          {message.text}
+        </p>
+      )}
+
+      {(uploader.active > 0 || uploader.failed > 0) && (
+        <div className="pr-bg-upload">
+          {uploader.active > 0 && <span>جارٍ رفع {uploader.active} صورة...</span>}
+          {uploader.failed > 0 && (
+            <>
+              <span className="error">فشل رفع {uploader.failed} صورة</span>
+              <button type="button" onClick={uploader.retryFailed}>
+                إعادة المحاولة
+              </button>
+              <button
+                type="button"
+                className="pr-muted"
+                onClick={() => {
+                  if (window.confirm('ترك الصور اللي فشل رفعها؟')) {
+                    uploader.dropFailed()
+                  }
+                }}
+              >
+                تركها
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <div className="pr-recent">
+          <p className="pr-hint">آخر الأوراق المحفوظة:</p>
+          <ul>
+            {recent.map((item) => (
+              <li key={item.key}>
+                <strong>{item.name}</strong>
+                <span>فاتورة {item.invoice}</span>
+                <span>{item.delivery ? `إذن ${item.delivery}` : 'بدون رقم إذن'}</span>
+                <small>{item.count ? `${item.count} صورة` : 'بدون صور'}</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="pr-modal-actions">
+        <button
+          type="button"
+          className="pr-primary"
+          onClick={handleSave}
+          disabled={!canSave}
+        >
+          {saving
+            ? 'جارٍ الحفظ...'
+            : photos.length ? `حفظ (${photos.length} صورة)` : 'حفظ'}
+        </button>
+        <button
+          type="button"
+          className="pr-muted"
+          onClick={onClose}
+          disabled={saving}
+        >
+          انتهيت
+        </button>
       </div>
     </div>
   )
@@ -893,6 +1415,7 @@ function SingleEntry({
 
 function AccountCombobox({
   inputRef,
+  label = 'اسم الحساب',
   accounts,
   lookups,
   text,
@@ -929,7 +1452,7 @@ function AccountCombobox({
 
   return (
     <div className="pr-field pr-combobox">
-      <span>اسم الحساب</span>
+      <span>{label}</span>
       <input
         ref={inputRef}
         autoFocus

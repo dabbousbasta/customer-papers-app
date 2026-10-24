@@ -17,6 +17,7 @@
 | `src/pricing.css` | جديد |
 | `src/lib/pricing.js` | جديد |
 | `src/lib/searchText.js` | جديد |
+| `src/lib/supabase.js` | استبدال (إعادة محاولة تلقائية لخطأ JWT issued at future) |
 | `supabase/pricing_setup.sql` | جديد (للحفظ) |
 
 ## 3) التجربة والنشر (PowerShell)
@@ -35,3 +36,10 @@ GitHub بينشر الموقع تلقائيًا بعد دقيقتين تقريب
 ## العناوين
 - الصفحة الرئيسية الجديدة: `#/`
 - صفحات الأوراق القديمة: `#/papers` (زر «الأوراق» بزاوية الشاشة)
+
+## آخر تحديث: شاشة «ورقة ورقة» (لازم SQL)
+1. شغّل `supabase/pricing_setup.sql` مرة تانية بـ SQL Editor (بيخلي رقم إذن التسليم اختياري).
+2. انسخ: `src/PricingRegister.jsx` و `src/PricingPage.jsx` و `src/pricing.css` و `src/lib/pricing.js`.
+3. `git add .` ثم `git commit -m "Paper by paper entry"` ثم `git push`.
+
+طريقة الشغل: «+ ورقة جديدة» ← اسم العميل ← رقم الإذن (أو فاضي) ← رقم الفاتورة ← صوّر ← حفظ. الشاشة بتفضى للورقة الجاية والصور بترفع بالخلفية.
