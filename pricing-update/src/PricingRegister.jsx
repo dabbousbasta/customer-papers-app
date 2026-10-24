@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createPricingAccount,
-  createPricingInvoice
+  createPricingInvoice,
+  uploadPricingImage
 } from './lib/pricing'
 import {
   cleanDocumentNumber,
@@ -107,6 +108,9 @@ function getNumberStatus(account, number, invoicesByAccount) {
   return existing.is_archived ? 'archived' : 'exists'
 }
 
+const UPLOAD_WORKERS = 3
+let queueSequence = 0
+
 const STATUS_LABEL = {
   new: 'جديدة',
   exists: 'مسجلة من قبل',
@@ -122,25 +126,31 @@ export default function RegisterModal({
   imagesByInvoice,
   onAccountSaved,
   onInvoiceSaved,
+  onImageUploaded,
   onClose
 }) {
   const [mode, setMode] = useState('single')
   const [saving, setSaving] = useState(false)
+  const [pendingImages, setPendingImages] = useState(0)
   const lookups = useLookups(accounts, invoices)
 
   // الحفظ المشترك: ينشئ الحساب إذا مش موجود، وبعدين الفواتير الجديدة
   async function saveEntries(entries, onProgress) {
     const accountByName = new Map(lookups.accountByName)
-    const known = new Set(
-      invoices.map(
-        (invoice) => `${invoice.account_id}|${invoice.invoice_number}`
-      )
+    const known = new Map(
+      invoices.map((invoice) => [
+        `${invoice.account_id}|${invoice.invoice_number}`,
+        invoice.id
+      ])
     )
     const result = {
       newAccounts: 0,
       newInvoices: 0,
       skipped: 0,
-      errors: []
+      errors: [],
+      // آخر حساب + أرقام فواتيره (للصور)
+      account: null,
+      invoiceIds: new Map()
     }
     const total = entries.reduce(
       (sum, entry) => sum + 1 + entry.numbers.length,
@@ -168,17 +178,23 @@ export default function RegisterModal({
 
       done += 1
       onProgress?.(done, total)
+      result.account = account
+      result.invoiceIds = new Map()
 
       for (const number of entry.numbers) {
-        if (known.has(`${account.id}|${number}`)) {
+        const knownId = known.get(`${account.id}|${number}`)
+
+        if (knownId) {
           result.skipped += 1
+          result.invoiceIds.set(number, knownId)
         } else {
           try {
             const invoice = await createPricingInvoice({
               accountId: account.id,
               invoiceNumber: number
             })
-            known.add(`${account.id}|${number}`)
+            known.set(`${account.id}|${number}`, invoice.id)
+            result.invoiceIds.set(number, invoice.id)
             onInvoiceSaved(invoice)
             result.newInvoices += 1
           } catch (error) {
@@ -198,6 +214,14 @@ export default function RegisterModal({
 
   function requestClose() {
     if (saving) return
+
+    if (
+      pendingImages > 0 &&
+      !window.confirm('في صور لم تُرفع بعد. إغلاق النافذة وتركها؟')
+    ) {
+      return
+    }
+
     onClose()
   }
 
@@ -232,7 +256,17 @@ export default function RegisterModal({
           <button
             type="button"
             className={mode === 'excel' ? 'active' : ''}
-            onClick={() => !saving && setMode('excel')}
+            onClick={() => {
+              if (saving) return
+              if (
+                pendingImages > 0 &&
+                !window.confirm('في صور لم تُرفع بعد. تركها؟')
+              ) {
+                return
+              }
+              setPendingImages(0)
+              setMode('excel')
+            }}
           >
             لصق من Excel
           </button>
@@ -247,6 +281,8 @@ export default function RegisterModal({
             saving={saving}
             setSaving={setSaving}
             saveEntries={saveEntries}
+            onImageUploaded={onImageUploaded}
+            onPendingChange={setPendingImages}
             onClose={requestClose}
           />
         ) : (
@@ -275,6 +311,8 @@ function SingleEntry({
   saving,
   setSaving,
   saveEntries,
+  onImageUploaded,
+  onPendingChange,
   onClose
 }) {
   const initialAccount = accounts.find(
@@ -288,8 +326,30 @@ function SingleEntry({
   )
   const [numbersText, setNumbersText] = useState('')
   const [message, setMessage] = useState(null)
+  const [deliveryNumber, setDeliveryNumber] = useState('')
+  const [targetNumber, setTargetNumber] = useState('')
+  const [queue, setQueue] = useState([])
+  const [progress, setProgress] = useState(null)
   const accountInputRef = useRef(null)
   const numbersInputRef = useRef(null)
+  const deliveryInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const filesInputRef = useRef(null)
+  const queueRef = useRef(queue)
+
+  useEffect(() => {
+    queueRef.current = queue
+    onPendingChange?.(queue.length)
+  }, [queue, onPendingChange])
+
+  useEffect(
+    () => () => {
+      for (const item of queueRef.current) {
+        URL.revokeObjectURL(item.previewUrl)
+      }
+    },
+    []
+  )
 
   const selectedAccount =
     accounts.find((account) => account.id === selectedId) ||
@@ -317,13 +377,158 @@ function SingleEntry({
         lookups.invoicesByAccount
       ) === 'new'
   )
+  // الفاتورة اللي رح تنضاف إلها الصور الجاية (افتراضيًا آخر رقم مكتوب)
+  const activeTarget = numbers.includes(targetNumber)
+    ? targetNumber
+    : numbers[numbers.length - 1] || ''
+  const badImages = queue.filter(
+    (item) =>
+      !numbers.includes(item.invoiceNumber) ||
+      !cleanDocumentNumber(item.deliveryNumber)
+  ).length
   const canSave =
     !saving &&
     Boolean(cleanName) &&
-    (isNewAccount || newNumbers.length > 0)
+    (isNewAccount || newNumbers.length > 0 || queue.length > 0)
+
+  function openPicker(inputRef) {
+    if (numbers.length === 0) {
+      setMessage({ error: true, text: 'اكتب رقم الفاتورة أولًا' })
+      numbersInputRef.current?.focus()
+      return
+    }
+
+    if (!cleanDocumentNumber(deliveryNumber)) {
+      setMessage({ error: true, text: 'اكتب رقم إذن التسليم أولًا' })
+      deliveryInputRef.current?.focus()
+      return
+    }
+
+    setMessage(null)
+    inputRef.current?.click()
+  }
+
+  function addFiles(fileList) {
+    const files = [...(fileList || [])].filter((file) =>
+      file.type.startsWith('image/')
+    )
+
+    if (files.length === 0) return
+
+    const number = cleanDocumentNumber(deliveryNumber)
+
+    setQueue((current) => [
+      ...current,
+      ...files.map((file) => {
+        queueSequence += 1
+
+        return {
+          key: `r${queueSequence}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+          invoiceNumber: activeTarget,
+          deliveryNumber: number,
+          status: 'waiting',
+          error: ''
+        }
+      })
+    ])
+  }
+
+  function updateItem(key, changes) {
+    setQueue((current) =>
+      current.map((item) =>
+        item.key === key ? { ...item, ...changes } : item
+      )
+    )
+  }
+
+  function removeItem(key) {
+    setQueue((current) => {
+      const item = current.find((entry) => entry.key === key)
+      if (item) URL.revokeObjectURL(item.previewUrl)
+      return current.filter((entry) => entry.key !== key)
+    })
+  }
+
+  function addExistingNumber(number) {
+    if (numbers.includes(number)) {
+      setTargetNumber(number)
+      return
+    }
+
+    setNumbersText((text) => (text.trim() ? `${text.trim()}\n${number}` : number))
+    setTargetNumber(number)
+    setMessage(null)
+  }
+
+  async function uploadQueue(invoiceIds) {
+    const items = queueRef.current.slice()
+    let cursor = 0
+    let success = 0
+    let failed = 0
+
+    setProgress({ done: 0, total: items.length })
+
+    async function worker() {
+      while (cursor < items.length) {
+        const item = items[cursor]
+        cursor += 1
+
+        updateItem(item.key, { status: 'uploading', error: '' })
+
+        try {
+          const saved = await uploadPricingImage({
+            invoiceId: invoiceIds.get(item.invoiceNumber),
+            deliveryNumber: cleanDocumentNumber(item.deliveryNumber),
+            file: item.file
+          })
+
+          onImageUploaded?.(saved)
+          updateItem(item.key, { status: 'done' })
+          success += 1
+        } catch (uploadError) {
+          updateItem(item.key, {
+            status: 'failed',
+            error: uploadError.message
+          })
+          failed += 1
+        }
+
+        setProgress({ done: success + failed, total: items.length })
+      }
+    }
+
+    await Promise.all(
+      Array.from(
+        { length: Math.min(UPLOAD_WORKERS, items.length) },
+        worker
+      )
+    )
+
+    // نشيل الصور التي نجحت من القائمة
+    setQueue((current) => {
+      for (const item of current) {
+        if (item.status === 'done') URL.revokeObjectURL(item.previewUrl)
+      }
+
+      return current.filter((item) => item.status !== 'done')
+    })
+    setProgress(null)
+
+    return { success, failed }
+  }
 
   async function handleSave() {
     if (!canSave) return
+
+    if (badImages > 0) {
+      setMessage({
+        error: true,
+        text: 'في صور بدون رقم إذن، أو لفاتورة مش مكتوبة بالأرقام. صحّحها تحت الصورة.'
+      })
+      return
+    }
 
     setSaving(true)
     setMessage(null)
@@ -335,15 +540,8 @@ function SingleEntry({
       }
     ])
 
-    setSaving(false)
-
-    const parts = []
-
-    if (result.newAccounts) parts.push('حساب جديد')
-    if (result.newInvoices) parts.push(`${result.newInvoices} فاتورة`)
-    if (result.skipped) parts.push(`${result.skipped} مسجلة من قبل`)
-
-    if (result.errors.length) {
+    if (result.errors.length || !result.account) {
+      setSaving(false)
       setMessage({
         error: true,
         text: `صار خطأ: ${result.errors.join(' — ')}`
@@ -351,13 +549,41 @@ function SingleEntry({
       return
     }
 
+    // إذا الحساب كان جديد، نثبّته حتى لو صار خطأ بالصور ونعيد المحاولة
+    setSelectedId(result.account.id)
+    setAccountText(result.account.name)
+
+    let uploaded = { success: 0, failed: 0 }
+
+    if (queueRef.current.length > 0) {
+      uploaded = await uploadQueue(result.invoiceIds)
+    }
+
+    setSaving(false)
+
+    const parts = []
+
+    if (result.newAccounts) parts.push('حساب جديد')
+    if (result.newInvoices) parts.push(`${result.newInvoices} فاتورة`)
+    if (uploaded.success) parts.push(`${uploaded.success} صورة`)
+
+    if (uploaded.failed) {
+      setMessage({
+        error: true,
+        text: `انحفظ ${parts.join('، ') || 'لا شي'}. وفشل رفع ${uploaded.failed} صورة، اضغط «حفظ» مرة ثانية لإعادة المحاولة.`
+      })
+      return
+    }
+
     setMessage({
       error: false,
-      text: `انحفظ لـ «${selectedAccount ? selectedAccount.name : cleanName}»: ${parts.join('، ') || 'لا شي جديد'}. بتلاقيها بتبويب «بانتظار الصور».`
+      text: `انحفظ لـ «${result.account.name}»: ${parts.join('، ') || 'لا شي جديد'}.${uploaded.success ? '' : ' بتلاقيها بتبويب «بانتظار الصور».'}`
     })
     setAccountText('')
     setSelectedId(null)
     setNumbersText('')
+    setDeliveryNumber('')
+    setTargetNumber('')
     accountInputRef.current?.focus()
   }
 
@@ -424,15 +650,168 @@ function SingleEntry({
               lookups.invoicesByAccount
             )
 
+            const count = queue.filter(
+              (item) => item.invoiceNumber === number
+            ).length
+
             return (
               <li key={number} className={status}>
                 {number}
                 <small>{STATUS_LABEL[status]}</small>
+                {count > 0 && <small className="pr-chip-count">{count} صورة</small>}
               </li>
             )
           })}
         </ul>
       )}
+
+      <section className="pr-register-images">
+        <h3>صور أذونات التسليم <small>(اختياري)</small></h3>
+
+        <input
+          ref={cameraInputRef}
+          className="pr-hidden-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(event) => {
+            addFiles(event.target.files)
+            event.target.value = ''
+          }}
+        />
+        <input
+          ref={filesInputRef}
+          className="pr-hidden-input"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) => {
+            addFiles(event.target.files)
+            event.target.value = ''
+          }}
+        />
+
+        <div className="pr-register-images-row">
+          {numbers.length > 1 && (
+            <label className="pr-field">
+              <span>للفاتورة</span>
+              <select
+                value={activeTarget}
+                onChange={(event) => setTargetNumber(event.target.value)}
+                disabled={saving}
+              >
+                {numbers.map((number) => (
+                  <option key={number} value={number}>
+                    {number}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="pr-field">
+            <span>رقم إذن التسليم</span>
+            <input
+              ref={deliveryInputRef}
+              value={deliveryNumber}
+              onChange={(event) => setDeliveryNumber(event.target.value)}
+              placeholder="مثال: 320"
+              inputMode="numeric"
+              disabled={saving}
+            />
+          </label>
+        </div>
+
+        <div className="pr-pick-buttons">
+          <button
+            type="button"
+            onClick={() => openPicker(cameraInputRef)}
+            disabled={saving}
+          >
+            الكاميرا
+          </button>
+          <button
+            type="button"
+            onClick={() => openPicker(filesInputRef)}
+            disabled={saving}
+          >
+            من الملفات
+          </button>
+        </div>
+
+        {queue.length > 0 && (
+          <ul className="pr-queue">
+            {queue.map((item) => {
+              const wrongInvoice = !numbers.includes(item.invoiceNumber)
+
+              return (
+                <li key={item.key} className={`pr-queue-item ${item.status}`}>
+                  <img src={item.previewUrl} alt="" />
+                  <select
+                    className={wrongInvoice ? 'pr-invalid' : ''}
+                    value={wrongInvoice ? '' : item.invoiceNumber}
+                    onChange={(event) =>
+                      updateItem(item.key, {
+                        invoiceNumber: event.target.value
+                      })
+                    }
+                    disabled={saving}
+                    aria-label="الفاتورة لهذه الصورة"
+                  >
+                    {wrongInvoice && (
+                      <option value="">فاتورة؟ ({item.invoiceNumber})</option>
+                    )}
+                    {numbers.map((number) => (
+                      <option key={number} value={number}>
+                        فاتورة {number}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={item.deliveryNumber}
+                    onChange={(event) =>
+                      updateItem(item.key, {
+                        deliveryNumber: event.target.value
+                      })
+                    }
+                    disabled={saving}
+                    aria-label="رقم إذن التسليم لهذه الصورة"
+                    placeholder="رقم الإذن"
+                  />
+                  <small>
+                    {item.status === 'waiting' && `إذن ${item.deliveryNumber || '؟'}`}
+                    {item.status === 'uploading' && 'جارٍ الرفع...'}
+                    {item.status === 'done' && 'تم'}
+                    {item.status === 'failed' && `فشل: ${item.error}`}
+                  </small>
+                  {!saving && (
+                    <button
+                      type="button"
+                      className="pr-queue-remove"
+                      onClick={() => removeItem(item.key)}
+                      aria-label="إزالة الصورة"
+                    >
+                      ×
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {progress && (
+          <div className="pr-progress">
+            <div
+              style={{
+                width: `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`
+              }}
+            />
+            <span>
+              رفع الصور {progress.done} من {progress.total}
+            </span>
+          </div>
+        )}
+      </section>
 
       {message && (
         <p className={message.error ? 'pr-message error' : 'pr-message'}>
@@ -442,13 +821,30 @@ function SingleEntry({
 
       {accountInvoices.length > 0 && (
         <div className="pr-existing-invoices">
-          <p className="pr-hint">الفواتير المسجلة لهذا الحساب:</p>
+          <p className="pr-hint">
+            الفواتير المسجلة لهذا الحساب (اضغط على فاتورة لتضيف إلها صور):
+          </p>
           <ul>
             {accountInvoices.map((invoice) => {
               const count = imagesByInvoice.get(invoice.id)?.length || 0
 
               return (
-                <li key={invoice.id}>
+                <li
+                  key={invoice.id}
+                  role="button"
+                  tabIndex={0}
+                  className={
+                    numbers.includes(invoice.invoice_number) ? 'chosen' : ''
+                  }
+                  onClick={() =>
+                    !saving && addExistingNumber(invoice.invoice_number)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      addExistingNumber(invoice.invoice_number)
+                    }
+                  }}
+                >
                   {invoice.invoice_number}
                   <small>
                     {invoice.is_archived
@@ -473,9 +869,14 @@ function SingleEntry({
         >
           {saving
             ? 'جارٍ الحفظ...'
-            : isNewAccount
-              ? `حفظ الحساب${newNumbers.length ? ` + ${newNumbers.length} فاتورة` : ''}`
-              : `حفظ ${newNumbers.length} فاتورة`}
+            : [
+                isNewAccount ? 'حفظ الحساب' : 'حفظ',
+                newNumbers.length ? `${newNumbers.length} فاتورة` : '',
+                queue.length ? `${queue.length} صورة` : ''
+              ]
+                .filter(Boolean)
+                .join(isNewAccount ? ' + ' : ' + ')
+                .replace('حفظ + ', 'حفظ ')}
         </button>
         <button
           type="button"

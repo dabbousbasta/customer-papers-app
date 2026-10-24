@@ -1049,3 +1049,57 @@
     border-radius: 0;
   }
 }
+
+/* صور داخل شاشة التسجيل */
+.pr-register-images {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.pr-register-images h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.pr-register-images h3 small {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.pr-register-images-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.pr-register-images select,
+.pr-queue-item select {
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+}
+
+.pr-queue-item select.pr-invalid {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.pr-chip-count {
+  color: #1d4ed8 !important;
+}
+
+.pr-existing-invoices li[role='button'] {
+  cursor: pointer;
+}
+
+.pr-existing-invoices li.chosen {
+  border-color: #2563eb;
+  background: #eff6ff;
+}

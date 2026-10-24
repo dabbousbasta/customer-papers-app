@@ -857,6 +857,7 @@ export default function PricingPage({ session, signOut }) {
           imagesByInvoice={imagesByInvoice}
           onAccountSaved={upsertAccount}
           onInvoiceSaved={upsertInvoice}
+          onImageUploaded={addImage}
           onClose={() => setModal(null)}
         />
       )}
