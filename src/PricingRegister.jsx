@@ -493,6 +493,53 @@ function PaperEntry({
     ? imagesByInvoice.get(existingInvoice.id)?.length || 0
     : 0
   const canSave = !saving && Boolean(cleanName) && Boolean(invoiceNumber)
+  const deliveryClean = cleanDocumentNumber(deliveryNumber)
+
+  // وين موجود رقم الإذن من قبل (بكل الحسابات)
+  const deliveryIndex = useMemo(() => {
+    const accountById = new Map(accounts.map((account) => [account.id, account]))
+    const invoiceById = new Map()
+
+    for (const list of lookups.invoicesByAccount.values()) {
+      for (const invoice of list) invoiceById.set(invoice.id, invoice)
+    }
+
+    const index = new Map()
+
+    for (const [invoiceId, images] of imagesByInvoice) {
+      const invoice = invoiceById.get(invoiceId)
+      if (!invoice) continue
+
+      for (const image of images) {
+        const number = cleanDocumentNumber(image.delivery_number || '')
+        if (!number) continue
+
+        if (!index.has(number)) index.set(number, new Map())
+        const places = index.get(number)
+
+        if (!places.has(invoiceId)) {
+          places.set(invoiceId, {
+            invoiceId,
+            accountName: accountById.get(invoice.account_id)?.name || '',
+            invoiceNumber: invoice.invoice_number,
+            archived: invoice.is_archived,
+            count: 0
+          })
+        }
+
+        places.get(invoiceId).count += 1
+      }
+    }
+
+    return index
+  }, [accounts, lookups, imagesByInvoice])
+
+  const deliveryPlaces = deliveryClean
+    ? [...(deliveryIndex.get(deliveryClean)?.values() || [])]
+    : []
+  const sameInvoicePlace = existingInvoice
+    ? deliveryPlaces.find((place) => place.invoiceId === existingInvoice.id)
+    : null
 
   function addFiles(fileList) {
     const files = [...(fileList || [])].filter((file) =>
@@ -670,14 +717,41 @@ function PaperEntry({
           />
         </label>
       </div>
-      {invoiceNumber && cleanName && (
+      {deliveryPlaces.length > 0 && (
+        <div className={sameInvoicePlace ? 'pr-alert' : 'pr-alert soft'}>
+          <strong>
+            {sameInvoicePlace
+              ? `رقم الإذن ${deliveryClean} موجود قبل بنفس الفاتورة`
+              : `رقم الإذن ${deliveryClean} موجود قبل`}
+          </strong>
+          <ul>
+            {deliveryPlaces.map((place) => (
+              <li key={place.invoiceId}>
+                {place.accountName} · فاتورة {place.invoiceNumber} ·{' '}
+                {place.count} صورة{place.archived ? ' · مأرشفة' : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {invoiceNumber && cleanName && existingInvoice?.is_archived && (
+        <div className="pr-alert">
+          <strong>الفاتورة {invoiceNumber} مأرشفة</strong>
+          <span>
+            فيها {existingCount} صورة. تأكد إنك ما عم تضيف صورة مكررة.
+          </span>
+        </div>
+      )}
+
+      {invoiceNumber && cleanName && !existingInvoice?.is_archived && (
         <p
           className={
             existingInvoice ? 'pr-account-state existing' : 'pr-account-state new'
           }
         >
           {existingInvoice
-            ? `فاتورة مسجلة${existingInvoice.is_archived ? ' (بالأرشيف)' : ''} · فيها ${existingCount} صورة · الصور رح تنضاف عليها`
+            ? `فاتورة مسجلة · فيها ${existingCount} صورة · الصور رح تنضاف عليها`
             : 'فاتورة جديدة'}
         </p>
       )}

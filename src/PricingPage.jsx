@@ -827,6 +827,7 @@ export default function PricingPage({ session, signOut }) {
                             {invoiceOpen && !isWaitingTab && (
                               <InvoiceImages
                                 images={item.shownImages}
+                                onImageDeleted={removeImage}
                                 onOpen={(orderedImages, index) =>
                                   openViewer(orderedImages, index, {
                                     accountName: group.account.name,
@@ -931,7 +932,7 @@ function FilterInput({
 // صور الفاتورة مقسمة حسب رقم إذن التسليم
 // =====================================================
 
-function InvoiceImages({ images, onOpen }) {
+function InvoiceImages({ images, onOpen, onImageDeleted }) {
   const groups = useMemo(() => groupByDelivery(images), [images])
   const orderedImages = useMemo(
     () => groups.flatMap((group) => group.images),
@@ -944,6 +945,25 @@ function InvoiceImages({ images, onOpen }) {
   )
   const [urls, setUrls] = useState({})
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
+
+  async function deleteDuplicate(image) {
+    if (!window.confirm(`حذف هذه الصورة من إذن التسليم ${image.delivery_number}؟`)) {
+      return
+    }
+
+    setDeletingId(image.id)
+    setError('')
+
+    try {
+      await deletePricingImage(image.id)
+      onImageDeleted?.(image.id)
+    } catch (deleteError) {
+      setError(deleteError.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -970,8 +990,22 @@ function InvoiceImages({ images, onOpen }) {
         <p className="pr-message error">تعذر تحميل الصور: {error}</p>
       )}
 
-      {groups.map((group) => (
-        <div key={group.deliveryNumber} className="pr-delivery">
+      {groups.map((group) => {
+        // نفس رقم الإذن أكتر من صورة بنفس الفاتورة (الأوراق بدون رقم ما منحسبها)
+        const duplicated = Boolean(group.deliveryNumber) && group.images.length > 1
+
+        return (
+        <div
+          key={group.deliveryNumber}
+          className={duplicated ? 'pr-delivery duplicated' : 'pr-delivery'}
+        >
+          {duplicated && (
+            <p className="pr-alert">
+              تنبيه: إذن التسليم {group.deliveryNumber} مكرر بهالفاتورة (
+              {group.images.length} صور). تأكد إنها مش نفس الورقة، واحذف
+              المكرر.
+            </p>
+          )}
           <h4>
             {group.deliveryNumber
               ? `إذن تسليم ${group.deliveryNumber}`
@@ -1011,12 +1045,32 @@ function InvoiceImages({ images, onOpen }) {
                     · {groupIndex + 1}/
                     {group.images.length}
                   </span>
+                  {duplicated && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="pr-dup-delete"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        if (!deletingId) deleteDuplicate(image)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.stopPropagation()
+                          if (!deletingId) deleteDuplicate(image)
+                        }
+                      }}
+                    >
+                      {deletingId === image.id ? 'جارٍ الحذف...' : 'حذف الصورة'}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

@@ -1213,3 +1213,52 @@
   padding-inline: 4px;
   white-space: nowrap;
 }
+
+/* تنبيهات التكرار والأرشيف */
+.pr-alert {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid #dc2626;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.pr-alert.soft {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.pr-alert strong {
+  font-size: 0.95rem;
+}
+
+.pr-alert ul {
+  margin: 0;
+  padding-inline-start: 18px;
+}
+
+.pr-delivery.duplicated {
+  padding: 8px;
+  border: 2px solid #dc2626;
+  border-radius: 12px;
+}
+
+.pr-dup-delete {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
