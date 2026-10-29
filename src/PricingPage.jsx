@@ -46,10 +46,62 @@ function countDeliveries(images) {
   return new Set(images.map((image) => image.delivery_number)).size
 }
 
-function groupByDelivery(images) {
+function compareDelivery(a, b, direction) {
+  // الأوراق بدون رقم إذن دايمًا بالآخر
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  return direction === 'desc' ? compareNumbersDesc(a, b) : compareNumbersAsc(a, b)
+}
+
+function byTime(a, b) {
+  return String(a.created_at || '').localeCompare(String(b.created_at || ''))
+}
+
+const IMAGE_SORTS = [
+  { value: 'time', label: 'وقت التصوير' },
+  { value: 'asc', label: 'تصاعدي' },
+  { value: 'desc', label: 'تنازلي' }
+]
+
+const SORT_STORAGE_KEY = 'pricing-image-sort'
+
+function readSavedSort() {
+  try {
+    const saved = window.localStorage.getItem(SORT_STORAGE_KEY)
+    return IMAGE_SORTS.some((item) => item.value === saved) ? saved : 'asc'
+  } catch {
+    return 'asc'
+  }
+}
+
+function groupByDelivery(images, sortMode = 'asc') {
+  const sorted = [...images].sort(byTime)
+
+  if (sortMode === 'time') {
+    // حسب وقت التصوير: كل ورقة بمكانها، والصور المتتالية لنفس الإذن سوا
+    const groups = []
+
+    for (const image of sorted) {
+      const last = groups[groups.length - 1]
+
+      if (last && last.deliveryNumber === image.delivery_number) {
+        last.images.push(image)
+      } else {
+        groups.push({
+          key: `${groups.length}-${image.delivery_number}`,
+          deliveryNumber: image.delivery_number,
+          images: [image]
+        })
+      }
+    }
+
+    return groups
+  }
+
   const groups = new Map()
 
-  for (const image of images) {
+  for (const image of sorted) {
     if (!groups.has(image.delivery_number)) {
       groups.set(image.delivery_number, [])
     }
@@ -57,18 +109,43 @@ function groupByDelivery(images) {
     groups.get(image.delivery_number).push(image)
   }
 
-  // تصاعدي، والأوراق بدون رقم إذن بالآخر
   return [...groups.entries()]
-    .sort((a, b) => {
-      if (!a[0] && !b[0]) return 0
-      if (!a[0]) return 1
-      if (!b[0]) return -1
-      return compareNumbersAsc(a[0], b[0])
-    })
+    .sort((a, b) => compareDelivery(a[0], b[0], sortMode))
     .map(([deliveryNumber, groupImages]) => ({
+      key: deliveryNumber,
       deliveryNumber,
       images: groupImages
     }))
+}
+
+// ملخص تحت اسم الحساب: 1500 (320، 325) - 1508 (341)
+function invoicesSummary(invoiceItems, waiting) {
+  return invoiceItems.map(({ invoice, shownImages }, index) => {
+    const numbers = waiting
+      ? []
+      : [...new Set(shownImages.map((image) => image.delivery_number))].sort(
+          (a, b) => compareDelivery(a, b, 'asc')
+        )
+
+    return (
+      <span key={invoice.id} className="pr-sum-item">
+        {index > 0 && <span className="pr-sum-sep"> - </span>}
+        <bdi className="pr-sum-invoice">{invoice.invoice_number}</bdi>
+        {numbers.length > 0 && (
+          <>
+            {' ('}
+            {numbers.map((number, numberIndex) => (
+              <span key={number || 'none'}>
+                {numberIndex > 0 && '، '}
+                <bdi>{number || 'بدون رقم'}</bdi>
+              </span>
+            ))}
+            {')'}
+          </>
+        )}
+      </span>
+    )
+  })
 }
 
 // =====================================================
@@ -84,6 +161,17 @@ export default function PricingPage({ session, signOut }) {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [tab, setTab] = useState('pending')
+  const [imageSort, setImageSort] = useState(readSavedSort)
+
+  function changeImageSort(value) {
+    setImageSort(value)
+
+    try {
+      window.localStorage.setItem(SORT_STORAGE_KEY, value)
+    } catch {
+      // ignore
+    }
+  }
   const [filters, setFilters] = useState({
     account: '',
     invoice: '',
@@ -677,6 +765,11 @@ export default function PricingPage({ session, signOut }) {
                             : 'بدون فواتير'
                           : `${group.invoices.length} فاتورة · ${group.imagesCount} صورة`}
                       </small>
+                      {group.invoices.length > 0 && (
+                        <span className="pr-account-summary">
+                          {invoicesSummary(group.invoices, isWaitingTab)}
+                        </span>
+                      )}
                     </button>
 
                     <div className="pr-row-actions">
@@ -826,6 +919,8 @@ export default function PricingPage({ session, signOut }) {
                             {invoiceOpen && !isWaitingTab && (
                               <InvoiceImages
                                 images={item.shownImages}
+                                sortMode={imageSort}
+                                onSortChange={changeImageSort}
                                 onImageDeleted={removeImage}
                                 onOpen={(orderedImages, index) =>
                                   openViewer(orderedImages, index, {
@@ -936,8 +1031,31 @@ function FilterInput({
 // صور الفاتورة مقسمة حسب رقم إذن التسليم
 // =====================================================
 
-function InvoiceImages({ images, onOpen, onImageDeleted }) {
-  const groups = useMemo(() => groupByDelivery(images), [images])
+function InvoiceImages({
+  images,
+  sortMode,
+  onSortChange,
+  onOpen,
+  onImageDeleted
+}) {
+  const groups = useMemo(
+    () => groupByDelivery(images, sortMode),
+    [images, sortMode]
+  )
+  // كم مرة متكرر كل رقم إذن بهالفاتورة
+  const deliveryCounts = useMemo(() => {
+    const counts = new Map()
+
+    for (const image of images) {
+      if (!image.delivery_number) continue
+      counts.set(
+        image.delivery_number,
+        (counts.get(image.delivery_number) || 0) + 1
+      )
+    }
+
+    return counts
+  }, [images])
   const orderedImages = useMemo(
     () => groups.flatMap((group) => group.images),
     [groups]
@@ -994,19 +1112,34 @@ function InvoiceImages({ images, onOpen, onImageDeleted }) {
         <p className="pr-message error">تعذر تحميل الصور: {error}</p>
       )}
 
+      <div className="pr-sort" role="group" aria-label="ترتيب الأوراق">
+        <span>الترتيب:</span>
+        {IMAGE_SORTS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            className={sortMode === item.value ? 'active' : ''}
+            onClick={() => onSortChange(item.value)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       {groups.map((group) => {
         // نفس رقم الإذن أكتر من صورة بنفس الفاتورة (الأوراق بدون رقم ما منحسبها)
-        const duplicated = Boolean(group.deliveryNumber) && group.images.length > 1
+        const duplicateCount = deliveryCounts.get(group.deliveryNumber) || 0
+        const duplicated = Boolean(group.deliveryNumber) && duplicateCount > 1
 
         return (
         <div
-          key={group.deliveryNumber}
+          key={group.key}
           className={duplicated ? 'pr-delivery duplicated' : 'pr-delivery'}
         >
           {duplicated && (
             <p className="pr-alert">
               تنبيه: إذن التسليم {group.deliveryNumber} مكرر بهالفاتورة (
-              {group.images.length} صور). تأكد إنها مش نفس الورقة، واحذف
+              {duplicateCount} صور). تأكد إنها مش نفس الورقة، واحذف
               المكرر.
             </p>
           )}

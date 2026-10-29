@@ -1278,3 +1278,62 @@
   font-weight: 800;
   text-align: center;
 }
+
+/* ترتيب الأوراق داخل الفاتورة */
+.pr-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 4px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #475569;
+}
+
+.pr-sort button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: white;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pr-sort button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+}
+
+/* ملخص الفواتير تحت اسم الحساب */
+.pr-account-summary {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  color: #1e3a8a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.pr-account-summary {
+  direction: rtl;
+}
+
+.pr-sum-item {
+  display: inline;
+}
+
+.pr-sum-invoice {
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.pr-sum-sep {
+  color: #94a3b8;
+}
