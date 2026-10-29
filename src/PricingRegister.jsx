@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createPricingAccount,
   createPricingInvoice,
+  updatePricingImage,
   uploadPricingImage
 } from './lib/pricing'
 import {
@@ -106,6 +107,71 @@ function getNumberStatus(account, number, invoicesByAccount) {
   if (!existing) return 'new'
 
   return existing.is_archived ? 'archived' : 'exists'
+}
+
+// وين موجود كل رقم إذن (بكل الحسابات)، مع إمكانية استثناء صورة
+function buildDeliveryIndex(accounts, lookups, imagesByInvoice, skipImageId) {
+  const accountById = new Map(accounts.map((account) => [account.id, account]))
+  const invoiceById = new Map()
+
+  for (const list of lookups.invoicesByAccount.values()) {
+    for (const invoice of list) invoiceById.set(invoice.id, invoice)
+  }
+
+  const index = new Map()
+
+  for (const [invoiceId, images] of imagesByInvoice) {
+    const invoice = invoiceById.get(invoiceId)
+    if (!invoice) continue
+
+    for (const image of images) {
+      if (image.id === skipImageId) continue
+
+      const number = cleanDocumentNumber(image.delivery_number || '')
+      if (!number) continue
+
+      if (!index.has(number)) index.set(number, new Map())
+      const places = index.get(number)
+
+      if (!places.has(invoiceId)) {
+        places.set(invoiceId, {
+          invoiceId,
+          accountName: accountById.get(invoice.account_id)?.name || '',
+          invoiceNumber: invoice.invoice_number,
+          archived: invoice.is_archived,
+          count: 0
+        })
+      }
+
+      places.get(invoiceId).count += 1
+    }
+  }
+
+  return index
+}
+
+function DeliveryAlert({ number, places, sameInvoiceId }) {
+  if (!number || places.length === 0) return null
+
+  const same = places.some((place) => place.invoiceId === sameInvoiceId)
+
+  return (
+    <div className={same ? 'pr-alert' : 'pr-alert soft'}>
+      <strong>
+        {same
+          ? `رقم الإذن ${number} موجود قبل بنفس الفاتورة`
+          : `رقم الإذن ${number} موجود قبل`}
+      </strong>
+      <ul>
+        {places.map((place) => (
+          <li key={place.invoiceId}>
+            {place.accountName} · فاتورة {place.invoiceNumber} ·{' '}
+            {place.count} صورة{place.archived ? ' · مأرشفة' : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 const UPLOAD_WORKERS = 3
@@ -495,51 +561,14 @@ function PaperEntry({
   const canSave = !saving && Boolean(cleanName) && Boolean(invoiceNumber)
   const deliveryClean = cleanDocumentNumber(deliveryNumber)
 
-  // وين موجود رقم الإذن من قبل (بكل الحسابات)
-  const deliveryIndex = useMemo(() => {
-    const accountById = new Map(accounts.map((account) => [account.id, account]))
-    const invoiceById = new Map()
-
-    for (const list of lookups.invoicesByAccount.values()) {
-      for (const invoice of list) invoiceById.set(invoice.id, invoice)
-    }
-
-    const index = new Map()
-
-    for (const [invoiceId, images] of imagesByInvoice) {
-      const invoice = invoiceById.get(invoiceId)
-      if (!invoice) continue
-
-      for (const image of images) {
-        const number = cleanDocumentNumber(image.delivery_number || '')
-        if (!number) continue
-
-        if (!index.has(number)) index.set(number, new Map())
-        const places = index.get(number)
-
-        if (!places.has(invoiceId)) {
-          places.set(invoiceId, {
-            invoiceId,
-            accountName: accountById.get(invoice.account_id)?.name || '',
-            invoiceNumber: invoice.invoice_number,
-            archived: invoice.is_archived,
-            count: 0
-          })
-        }
-
-        places.get(invoiceId).count += 1
-      }
-    }
-
-    return index
-  }, [accounts, lookups, imagesByInvoice])
+  const deliveryIndex = useMemo(
+    () => buildDeliveryIndex(accounts, lookups, imagesByInvoice),
+    [accounts, lookups, imagesByInvoice]
+  )
 
   const deliveryPlaces = deliveryClean
     ? [...(deliveryIndex.get(deliveryClean)?.values() || [])]
     : []
-  const sameInvoicePlace = existingInvoice
-    ? deliveryPlaces.find((place) => place.invoiceId === existingInvoice.id)
-    : null
 
   function addFiles(fileList) {
     const files = [...(fileList || [])].filter((file) =>
@@ -717,23 +746,11 @@ function PaperEntry({
           />
         </label>
       </div>
-      {deliveryPlaces.length > 0 && (
-        <div className={sameInvoicePlace ? 'pr-alert' : 'pr-alert soft'}>
-          <strong>
-            {sameInvoicePlace
-              ? `رقم الإذن ${deliveryClean} موجود قبل بنفس الفاتورة`
-              : `رقم الإذن ${deliveryClean} موجود قبل`}
-          </strong>
-          <ul>
-            {deliveryPlaces.map((place) => (
-              <li key={place.invoiceId}>
-                {place.accountName} · فاتورة {place.invoiceNumber} ·{' '}
-                {place.count} صورة{place.archived ? ' · مأرشفة' : ''}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <DeliveryAlert
+        number={deliveryClean}
+        places={deliveryPlaces}
+        sameInvoiceId={existingInvoice?.id}
+      />
 
       {invoiceNumber && cleanName && existingInvoice?.is_archived && (
         <div className="pr-alert">
@@ -1789,6 +1806,248 @@ function ExcelEntry({
         >
           انتهيت
         </button>
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
+// تعديل صورة محفوظة: الحساب + رقم الفاتورة + رقم الإذن
+// =====================================================
+
+export function EditImageModal({
+  image,
+  accounts,
+  invoices,
+  imagesByInvoice,
+  onAccountSaved,
+  onInvoiceSaved,
+  onImageUpdated,
+  onClose
+}) {
+  const lookups = useLookups(accounts, invoices)
+  const currentInvoice = invoices.find((item) => item.id === image.invoice_id)
+  const currentAccount = accounts.find(
+    (account) => account.id === currentInvoice?.account_id
+  )
+  const [accountText, setAccountText] = useState(currentAccount?.name || '')
+  const [selectedId, setSelectedId] = useState(currentAccount?.id || null)
+  const [invoiceText, setInvoiceText] = useState(
+    currentInvoice?.invoice_number || ''
+  )
+  const [deliveryNumber, setDeliveryNumber] = useState(
+    image.delivery_number || ''
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const accountInputRef = useRef(null)
+
+  const selectedAccount =
+    accounts.find((account) => account.id === selectedId) ||
+    lookups.accountByName.get(normalizeSearchText(accountText)) ||
+    null
+  const cleanName = accountText.trim().replace(/\s+/g, ' ')
+  const isNewAccount = Boolean(cleanName) && !selectedAccount
+  const invoiceNumber = cleanDocumentNumber(invoiceText)
+  const deliveryClean = cleanDocumentNumber(deliveryNumber)
+  const targetInvoice = selectedAccount
+    ? (lookups.invoicesByAccount.get(selectedAccount.id) || []).find(
+        (invoice) => invoice.invoice_number === invoiceNumber
+      )
+    : null
+  const targetCount = targetInvoice
+    ? (imagesByInvoice.get(targetInvoice.id) || []).filter(
+        (item) => item.id !== image.id
+      ).length
+    : 0
+  const moving = !targetInvoice || targetInvoice.id !== image.invoice_id
+  const unchanged =
+    !moving && deliveryClean === cleanDocumentNumber(image.delivery_number || '')
+
+  const deliveryIndex = useMemo(
+    () => buildDeliveryIndex(accounts, lookups, imagesByInvoice, image.id),
+    [accounts, lookups, imagesByInvoice, image.id]
+  )
+  const deliveryPlaces = deliveryClean
+    ? [...(deliveryIndex.get(deliveryClean)?.values() || [])]
+    : []
+
+  async function handleSave() {
+    if (!cleanName) {
+      setError('اكتب اسم الحساب')
+      accountInputRef.current?.focus()
+      return
+    }
+
+    if (!invoiceNumber) {
+      setError('اكتب رقم الفاتورة')
+      return
+    }
+
+    if (unchanged) {
+      onClose()
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    try {
+      let account = selectedAccount
+
+      if (!account) {
+        account = await createPricingAccount(cleanName)
+        onAccountSaved(account)
+      }
+
+      let invoice = targetInvoice
+
+      if (!invoice) {
+        invoice = await createPricingInvoice({
+          accountId: account.id,
+          invoiceNumber
+        })
+        onInvoiceSaved(invoice)
+      }
+
+      const updated = await updatePricingImage(image.id, {
+        invoiceId: invoice.id,
+        deliveryNumber: deliveryClean
+      })
+
+      onImageUpdated(updated, {
+        accountName: account.name,
+        invoiceNumber: invoice.invoice_number
+      })
+    } catch (saveError) {
+      setError(saveError.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="pr-modal-backdrop pr-edit-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) onClose()
+      }}
+    >
+      <div className="pr-modal pr-register" role="dialog" aria-modal="true">
+        <div className="pr-modal-head">
+          <h2>تعديل الصورة</h2>
+          <button
+            type="button"
+            className="pr-icon-button pr-muted"
+            onClick={() => !saving && onClose()}
+            aria-label="إغلاق"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="pr-step pr-paper">
+          <p className="pr-hint">
+            الآن: {currentAccount?.name || '؟'} · فاتورة{' '}
+            {currentInvoice?.invoice_number || '؟'} ·{' '}
+            {image.delivery_number ? `إذن ${image.delivery_number}` : 'بدون رقم إذن'}
+          </p>
+
+          <AccountCombobox
+            inputRef={accountInputRef}
+            label="اسم الحساب"
+            accounts={accounts}
+            lookups={lookups}
+            text={accountText}
+            selectedId={selectedAccount?.id || null}
+            disabled={saving}
+            onTextChange={(value) => {
+              setAccountText(value)
+              setSelectedId(null)
+              setError('')
+            }}
+            onSelect={(account) => {
+              setAccountText(account.name)
+              setSelectedId(account.id)
+            }}
+            onChooseNew={() => {}}
+          />
+          {isNewAccount && (
+            <p className="pr-account-state new">حساب جديد · رح ينحفظ</p>
+          )}
+
+          <div className="pr-paper-numbers">
+            <label className="pr-field">
+              <span>رقم إذن التسليم</span>
+              <input
+                value={deliveryNumber}
+                onChange={(event) => setDeliveryNumber(event.target.value)}
+                placeholder="فاضي إذا ما في"
+                inputMode="numeric"
+                autoComplete="off"
+                disabled={saving}
+              />
+            </label>
+            <label className="pr-field">
+              <span>رقم الفاتورة</span>
+              <input
+                value={invoiceText}
+                onChange={(event) => {
+                  setInvoiceText(event.target.value)
+                  setError('')
+                }}
+                inputMode="numeric"
+                autoComplete="off"
+                disabled={saving}
+              />
+            </label>
+          </div>
+
+          <DeliveryAlert
+            number={deliveryClean}
+            places={deliveryPlaces}
+            sameInvoiceId={targetInvoice?.id}
+          />
+
+          {invoiceNumber && cleanName && targetInvoice?.is_archived && (
+            <div className="pr-alert">
+              <strong>الفاتورة {invoiceNumber} مأرشفة</strong>
+              <span>فيها {targetCount} صورة. تأكد إنها مش مكررة.</span>
+            </div>
+          )}
+
+          {invoiceNumber && cleanName && !targetInvoice?.is_archived && moving && (
+            <p
+              className={
+                targetInvoice ? 'pr-account-state existing' : 'pr-account-state new'
+              }
+            >
+              {targetInvoice
+                ? `الصورة رح تنتقل لفاتورة مسجلة فيها ${targetCount} صورة`
+                : 'فاتورة جديدة · رح تنحفظ والصورة تنتقل إلها'}
+            </p>
+          )}
+
+          {error && <p className="pr-message error">{error}</p>}
+
+          <div className="pr-modal-actions">
+            <button
+              type="button"
+              className="pr-primary"
+              onClick={handleSave}
+              disabled={saving || !cleanName || !invoiceNumber}
+            >
+              {saving ? 'جارٍ الحفظ...' : 'حفظ التعديل'}
+            </button>
+            <button
+              type="button"
+              className="pr-muted"
+              onClick={onClose}
+              disabled={saving}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

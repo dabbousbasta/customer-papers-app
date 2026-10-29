@@ -424,6 +424,31 @@ export async function updatePricingImageDelivery(
   return data
 }
 
+// تعديل كامل للصورة: نقلها لفاتورة ثانية (حساب ثاني) وتعديل رقم الإذن
+export async function updatePricingImage(imageId, { invoiceId, deliveryNumber }) {
+  if (!invoiceId) {
+    throw new Error('اختر الفاتورة')
+  }
+
+  const { data, error } = await supabase
+    .from('pricing_images')
+    .update({
+      invoice_id: invoiceId,
+      delivery_number: cleanDocumentNumber(deliveryNumber || '')
+    })
+    .eq('id', imageId)
+    .select(
+      'id, invoice_id, delivery_number, image_path, thumb_path, created_at'
+    )
+    .single()
+
+  if (error) {
+    throw friendlyError(error)
+  }
+
+  return data
+}
+
 // الحذف ناعم: الصورة تختفي من الصفحة لكن الملف يبقى محفوظًا
 export async function deletePricingImage(imageId) {
   const { error } = await supabase

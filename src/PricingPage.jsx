@@ -16,7 +16,6 @@ import {
   loadPricingData,
   renamePricingAccount,
   setPricingInvoiceArchived,
-  updatePricingImageDelivery,
   updatePricingInvoiceNumber,
   uploadPricingImage
 } from './lib/pricing'
@@ -26,7 +25,7 @@ import {
   matchesSearch,
   normalizeSearchText
 } from './lib/searchText'
-import RegisterModal from './PricingRegister'
+import RegisterModal, { EditImageModal } from './PricingRegister'
 import './pricing.css'
 
 const UPLOAD_WORKERS = 3
@@ -889,6 +888,11 @@ export default function PricingPage({ session, signOut }) {
           setViewer={setViewer}
           onImageUpdated={replaceImage}
           onImageDeleted={removeImage}
+          accounts={data.accounts}
+          invoices={data.invoices}
+          imagesByInvoice={imagesByInvoice}
+          onAccountSaved={upsertAccount}
+          onInvoiceSaved={upsertInvoice}
         />
       )}
     </div>
@@ -1083,13 +1087,20 @@ function ImageViewer({
   viewer,
   setViewer,
   onImageUpdated,
-  onImageDeleted
+  onImageDeleted,
+  accounts,
+  invoices,
+  imagesByInvoice,
+  onAccountSaved,
+  onInvoiceSaved
 }) {
   const { images, index, context } = viewer
   const image = images[index]
   const [urls, setUrls] = useState({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [notice, setNotice] = useState('')
   const touchStart = useRef(null)
 
   const close = useCallback(() => setViewer(null), [setViewer])
@@ -1154,35 +1165,40 @@ function ImageViewer({
 
   const url = urls[image.image_path]
 
-  async function handleEditDelivery() {
-    const number = window.prompt(
-      'رقم إذن التسليم الصحيح لهذه الصورة',
-      image.delivery_number
-    )
-
-    if (
-      number === null ||
-      cleanDocumentNumber(number) === image.delivery_number
-    ) {
-      return
-    }
-
-    setBusy(true)
+  function handleEdited(updated, target) {
+    onImageUpdated(updated)
+    setEditing(false)
     setError('')
 
-    try {
-      const updated = await updatePricingImageDelivery(image.id, number)
-      onImageUpdated(updated)
+    if (updated.invoice_id === image.invoice_id) {
+      setNotice('انحفظ التعديل')
       setViewer((current) => ({
         ...current,
         images: current.images.map((item) =>
           item.id === updated.id ? updated : item
         )
       }))
-    } catch (updateError) {
-      setError(updateError.message)
-    } finally {
-      setBusy(false)
+      return
+    }
+
+    // الصورة انتقلت لفاتورة ثانية: منشيلها من هالعرض
+    setNotice(
+      `انتقلت الصورة لـ «${target.accountName}» · فاتورة ${target.invoiceNumber}`
+    )
+
+    const remaining = images.filter((item) => item.id !== updated.id)
+
+    if (remaining.length === 0) {
+      window.alert(
+        `انتقلت الصورة لـ «${target.accountName}» · فاتورة ${target.invoiceNumber}`
+      )
+      close()
+    } else {
+      setViewer((current) => ({
+        ...current,
+        images: remaining,
+        index: Math.min(current.index, remaining.length - 1)
+      }))
     }
   }
 
@@ -1270,6 +1286,7 @@ function ImageViewer({
       </div>
 
       {error && <p className="pr-message error">{error}</p>}
+      {notice && !error && <p className="pr-viewer-notice">{notice}</p>}
 
       <div className="pr-viewer-actions">
         <button
@@ -1279,8 +1296,15 @@ function ImageViewer({
         >
           → السابقة
         </button>
-        <button type="button" onClick={handleEditDelivery} disabled={busy}>
-          تعديل رقم الإذن
+        <button
+          type="button"
+          onClick={() => {
+            setNotice('')
+            setEditing(true)
+          }}
+          disabled={busy}
+        >
+          تعديل
         </button>
         {url && (
           <a href={url} target="_blank" rel="noreferrer">
@@ -1303,6 +1327,19 @@ function ImageViewer({
           التالية ←
         </button>
       </div>
+
+      {editing && (
+        <EditImageModal
+          image={image}
+          accounts={accounts}
+          invoices={invoices}
+          imagesByInvoice={imagesByInvoice}
+          onAccountSaved={onAccountSaved}
+          onInvoiceSaved={onInvoiceSaved}
+          onImageUpdated={handleEdited}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </div>
   )
 }
