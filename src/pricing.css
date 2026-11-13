@@ -1337,3 +1337,16 @@
 .pr-sum-sep {
   color: #94a3b8;
 }
+
+
+.pr-pdf {
+  background: #25d366;
+  color: #fff;
+  border-color: #25d366;
+  white-space: nowrap;
+}
+
+.pr-pdf.ready {
+  background: #198754;
+  border-color: #198754;
+}

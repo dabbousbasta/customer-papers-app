@@ -26,6 +26,7 @@ import {
   normalizeSearchText
 } from './lib/searchText'
 import RegisterModal, { EditImageModal } from './PricingRegister'
+import SharePdfButton from './SharePdfButton'
 import './pricing.css'
 
 const UPLOAD_WORKERS = 3
@@ -861,6 +862,16 @@ export default function PricingPage({ session, signOut }) {
                                 >
                                   ✎
                                 </button>
+                                {!isWaitingTab && (
+                                  <SharePdfButton
+                                    images={groupByDelivery(
+                                      item.allImages,
+                                      imageSort
+                                    ).flatMap((deliveryGroup) => deliveryGroup.images)}
+                                    filename={`فاتورة ${invoice.invoice_number} - ${group.account.name}.pdf`}
+                                    title={`فاتورة ${invoice.invoice_number}`}
+                                  />
+                                )}
                                 {!isArchiveTab && (
                                   <button
                                     type="button"
