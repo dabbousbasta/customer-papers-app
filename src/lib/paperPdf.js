@@ -51,11 +51,11 @@ export async function buildPdfBlob(urls, onProgress) {
   return pdf.output('blob')
 }
 
-export async function sharePdfBlob(blob, filename, title) {
+export async function sharePdfBlob(blob, filename) {
   const file = new File([blob], filename, { type: 'application/pdf' })
 
   if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title })
+    await navigator.share({ files: [file] })
     return 'shared'
   }
 

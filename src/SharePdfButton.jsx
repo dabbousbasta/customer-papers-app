@@ -3,7 +3,7 @@ import { getSignedImageUrls } from './lib/pricing'
 import { buildPdfBlob, sharePdfBlob } from './lib/paperPdf'
 
 // images: صور الفاتورة مرتبة، filename: اسم ملف الـ PDF
-export default function SharePdfButton({ images, filename, title }) {
+export default function SharePdfButton({ images, filename }) {
   const [state, setState] = useState('idle') // idle | working | ready
   const [progress, setProgress] = useState('')
   const blobRef = useRef(null)
@@ -27,7 +27,7 @@ export default function SharePdfButton({ images, filename, title }) {
         )
       }
 
-      await sharePdfBlob(blobRef.current, filename, title)
+      await sharePdfBlob(blobRef.current, filename)
       setState('idle')
     } catch (error) {
       if (error?.name === 'NotAllowedError') {

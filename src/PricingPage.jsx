@@ -868,8 +868,7 @@ export default function PricingPage({ session, signOut }) {
                                       item.allImages,
                                       imageSort
                                     ).flatMap((deliveryGroup) => deliveryGroup.images)}
-                                    filename={`فاتورة ${invoice.invoice_number} - ${group.account.name}.pdf`}
-                                    title={`فاتورة ${invoice.invoice_number}`}
+                                    filename={`Invoice-${String(invoice.invoice_number).replace(/[^A-Za-z0-9_-]+/g, '-')}.pdf`}
                                   />
                                 )}
                                 {!isArchiveTab && (
